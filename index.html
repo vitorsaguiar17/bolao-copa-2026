@@ -200,10 +200,9 @@ function clearSession(){
   localStorage.removeItem("bolao26_session");
 }
 
-// Auto-iniciar sync se sessão foi restaurada
+// Auto-iniciar sync se sessão foi restaurada (aguarda Firebase carregar)
 if(currentUser||isAdmin){
-  // aguarda Firebase inicializar antes de iniciar sync
-  setTimeout(startApiSync, 2000);
+  setTimeout(()=>{if(currentUser||isAdmin)startApiSync();}, 3000);
 }
 
 onValue(ref(db,"bolao"),(snap)=>{
@@ -245,6 +244,7 @@ function startApiSync(){
 }
 
 async function runApiSync(){
+  if(!currentUser&&!isAdmin)return; // não sincroniza se não logado
   showSyncBadge(true,"Sincronizando resultados...");
   try{
     await apiImportResults(false);
@@ -395,11 +395,12 @@ function bindLogin(){
     currentUser=name;isAdmin=false;
     saveSession();
     if(!fbState.players[name]){
-      // grava e deixa onValue disparar o render com dados atualizados
-      await set(ref(db,`bolao/players/${name}`),{palpites:{},elimPalpites:{},especiais:{}});
-    } else {
-      render();
+      // Atualiza estado local imediatamente para o render mostrar o jogador
+      fbState.players[name]={palpites:{},elimPalpites:{},especiais:{}};
+      // Persiste no Firebase em background
+      set(ref(db,`bolao/players/${name}`),{palpites:{},elimPalpites:{},especiais:{}});
     }
+    render();
     startApiSync();
   };
   document.getElementById("btn-admin-show").onclick=()=>document.getElementById("admin-login-form").style.display="block";
@@ -922,32 +923,43 @@ function exportPalpites(){
 
 // ─── ADMIN EVENT DELEGATION ───
 async function adminClickHandler(e){
-  const btn=e.target.closest("button");
-  if(!btn)return;
+  // Pega o botão clicado (ou o elemento pai se clicou num filho)
+  let btn=e.target;
+  if(btn.tagName!=="BUTTON")btn=btn.closest("button");
+  if(!btn||btn.tagName!=="BUTTON")return;
+
+  const sg=btn.getAttribute("data-save-group");
+  const ae=btn.getAttribute("data-add-elim");
+  const se=btn.getAttribute("data-save-elim");
+  const de=btn.getAttribute("data-del-elim");
+  const dp=btn.getAttribute("data-del-player");
 
   // Salvar grupo
-  if(btn.dataset.saveGroup){
-    const g=btn.dataset.saveGroup,updates={};
-    GROUPS[g].matches.forEach(m=>{
+  if(sg){
+    e.stopPropagation();
+    const updates={};
+    GROUPS[sg].matches.forEach(m=>{
       if(localResults[m.id]){
         if(localResults[m.id].h!=="")updates[`bolao/results/${m.id}/h`]=localResults[m.id].h;
         if(localResults[m.id].a!=="")updates[`bolao/results/${m.id}/a`]=localResults[m.id].a;
       }
     });
     if(Object.keys(updates).length){await update(ref(db),updates);localResults={};}
-    alert(`Grupo ${g} salvo!`);return;
+    alert(`Grupo ${sg} salvo!`);return;
   }
 
   // Adicionar jogo eliminatório
-  if(btn.dataset.addElim){
-    const phase=btn.dataset.addElim,id=Date.now();
-    await set(ref(db,`bolao/elimMatches/${id}`),{id,phase,home:"Time A",away:"Time B",date:"",time:"",city:""});
+  if(ae){
+    e.stopPropagation();
+    const id=Date.now();
+    await set(ref(db,`bolao/elimMatches/${id}`),{id,phase:ae,home:"Time A",away:"Time B",date:"",time:"",city:""});
     return;
   }
 
   // Salvar jogo eliminatório
-  if(btn.dataset.saveElim){
-    const eid=parseInt(btn.dataset.saveElim);
+  if(se){
+    e.stopPropagation();
+    const eid=parseInt(se);
     const get=side=>document.querySelector(`input[data-elim-id="${eid}"][data-elim-side="${side}"]`)?.value||"";
     const updates={};
     ["home","away","date","time","city"].forEach(s=>updates[`bolao/elimMatches/${eid}/${s}`]=get(s));
@@ -960,18 +972,20 @@ async function adminClickHandler(e){
   }
 
   // Deletar jogo eliminatório
-  if(btn.dataset.delElim){
+  if(de){
+    e.stopPropagation();
     if(!confirm("Remover este jogo?"))return;
-    const eid=parseInt(btn.dataset.delElim);
+    const eid=parseInt(de);
     await set(ref(db,`bolao/elimMatches/${eid}`),null);
     await set(ref(db,`bolao/results/e_${eid}`),null);
     return;
   }
 
   // Deletar jogador
-  if(btn.dataset.delPlayer){
-    if(!confirm(`Remover ${btn.dataset.delPlayer}?`))return;
-    await set(ref(db,`bolao/players/${btn.dataset.delPlayer}`),null);
+  if(dp){
+    e.stopPropagation();
+    if(!confirm(`Remover ${dp}?`))return;
+    await set(ref(db,`bolao/players/${dp}`),null);
     return;
   }
 }

@@ -392,10 +392,14 @@ function bindLogin(){
     const al=document.getElementById("login-alert");
     if(!name){al.innerHTML='<div class="alert error">Informe seu nome</div>';return;}
     if(sec!==fbState.secret){al.innerHTML='<div class="alert error">Código incorreto</div>';return;}
-    if(!fbState.players[name])await set(ref(db,`bolao/players/${name}`),{palpites:{},elimPalpites:{},especiais:{}});
     currentUser=name;isAdmin=false;
     saveSession();
-    render();
+    if(!fbState.players[name]){
+      // grava e deixa onValue disparar o render com dados atualizados
+      await set(ref(db,`bolao/players/${name}`),{palpites:{},elimPalpites:{},especiais:{}});
+    } else {
+      render();
+    }
     startApiSync();
   };
   document.getElementById("btn-admin-show").onclick=()=>document.getElementById("admin-login-form").style.display="block";
@@ -1092,9 +1096,11 @@ function bindAll(){
   document.querySelectorAll("input[data-rid]").forEach(inp=>{
     inp.oninput=()=>{const rid=inp.dataset.rid,side=inp.dataset.side;if(!localResults[rid])localResults[rid]={h:"",a:""};localResults[rid][side]=inp.value;};
   });
-  // Admin buttons via event delegation — garante funcionamento no GitHub Pages
-  document.removeEventListener("click",adminClickHandler);
-  document.addEventListener("click",adminClickHandler);
+  // Admin buttons via event delegation — registrado uma única vez
+  if(!window._adminDelegationActive){
+    window._adminDelegationActive=true;
+    document.addEventListener("click",adminClickHandler);
+  }
 
   const ap=document.getElementById("btn-add-player");
   if(ap)ap.onclick=async()=>{

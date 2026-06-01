@@ -182,13 +182,29 @@ for(const g in GROUPS)GROUPS[g].matches.forEach(m=>GROUP_MATCHES.push({...m,grou
 const ALL_TEAMS=Object.values(GROUPS).flatMap(g=>g.teams).sort();
 
 // ─── STATE ───
-let currentUser=null,isAdmin=false,currentTab="ranking",currentPhase="Grupos",detailPlayer=null;
+// Sessão persistida no localStorage para sobreviver a recarregamentos
+const _sess=JSON.parse(localStorage.getItem("bolao26_session")||"{}");
+let currentUser=_sess.currentUser||null;
+let isAdmin=_sess.isAdmin||false;
+let currentTab="ranking",currentPhase="Grupos",detailPlayer=null;
 let localResults={};
-// buffers de digitação por jogo: {mid: {h,a}}
 let inputBuffer={};
 let autoSaveTimers={};
 let fbState={secret:"copa2026",adminPass:"admin123",players:{},results:{},elimMatches:[],especiais:{}};
 let clockInterval=null;
+
+function saveSession(){
+  localStorage.setItem("bolao26_session",JSON.stringify({currentUser,isAdmin}));
+}
+function clearSession(){
+  localStorage.removeItem("bolao26_session");
+}
+
+// Auto-iniciar sync se sessão foi restaurada
+if(currentUser||isAdmin){
+  // aguarda Firebase inicializar antes de iniciar sync
+  setTimeout(startApiSync, 2000);
+}
 
 onValue(ref(db,"bolao"),(snap)=>{
   const d=snap.val();
@@ -201,6 +217,10 @@ onValue(ref(db,"bolao"),(snap)=>{
     fbState.especiais=d.especiais||{};
   } else {
     set(ref(db,"bolao"),{secret:"copa2026",adminPass:"admin123",players:{},results:{},elimMatches:{},especiais:{}});
+  }
+  // Se sessão restaurada mas jogador não existe mais no Firebase, desloga
+  if(currentUser && fbState.players && !fbState.players[currentUser]){
+    // não desloga automaticamente — pode ser timing. só renderiza.
   }
   render();
 });
@@ -374,8 +394,9 @@ function bindLogin(){
     if(sec!==fbState.secret){al.innerHTML='<div class="alert error">Código incorreto</div>';return;}
     if(!fbState.players[name])await set(ref(db,`bolao/players/${name}`),{palpites:{},elimPalpites:{},especiais:{}});
     currentUser=name;isAdmin=false;
+    saveSession();
     render();
-    startApiSync(); // inicia sync automático ao logar
+    startApiSync();
   };
   document.getElementById("btn-admin-show").onclick=()=>document.getElementById("admin-login-form").style.display="block";
   document.getElementById("btn-admin-login").onclick=()=>{
@@ -383,6 +404,7 @@ function bindLogin(){
     const al=document.getElementById("login-alert");
     if(pass!==fbState.adminPass){al.innerHTML='<div class="alert error">Senha incorreta</div>';return;}
     isAdmin=true;currentUser=null;
+    saveSession();
     render();
     startApiSync();
   };
@@ -894,11 +916,68 @@ function exportPalpites(){
   XLSX.writeFile(wb,`bolao_palpites_${new Date().toLocaleDateString('pt-BR').replace(/\//g,'-')}.xlsx`);
 }
 
+// ─── ADMIN EVENT DELEGATION ───
+async function adminClickHandler(e){
+  const btn=e.target.closest("button");
+  if(!btn)return;
+
+  // Salvar grupo
+  if(btn.dataset.saveGroup){
+    const g=btn.dataset.saveGroup,updates={};
+    GROUPS[g].matches.forEach(m=>{
+      if(localResults[m.id]){
+        if(localResults[m.id].h!=="")updates[`bolao/results/${m.id}/h`]=localResults[m.id].h;
+        if(localResults[m.id].a!=="")updates[`bolao/results/${m.id}/a`]=localResults[m.id].a;
+      }
+    });
+    if(Object.keys(updates).length){await update(ref(db),updates);localResults={};}
+    alert(`Grupo ${g} salvo!`);return;
+  }
+
+  // Adicionar jogo eliminatório
+  if(btn.dataset.addElim){
+    const phase=btn.dataset.addElim,id=Date.now();
+    await set(ref(db,`bolao/elimMatches/${id}`),{id,phase,home:"Time A",away:"Time B",date:"",time:"",city:""});
+    return;
+  }
+
+  // Salvar jogo eliminatório
+  if(btn.dataset.saveElim){
+    const eid=parseInt(btn.dataset.saveElim);
+    const get=side=>document.querySelector(`input[data-elim-id="${eid}"][data-elim-side="${side}"]`)?.value||"";
+    const updates={};
+    ["home","away","date","time","city"].forEach(s=>updates[`bolao/elimMatches/${eid}/${s}`]=get(s));
+    const rid='e_'+eid;
+    if(localResults[rid]){
+      if(localResults[rid].h!=="")updates[`bolao/results/${rid}/h`]=localResults[rid].h;
+      if(localResults[rid].a!=="")updates[`bolao/results/${rid}/a`]=localResults[rid].a;
+    }
+    await update(ref(db),updates);alert("Salvo!");return;
+  }
+
+  // Deletar jogo eliminatório
+  if(btn.dataset.delElim){
+    if(!confirm("Remover este jogo?"))return;
+    const eid=parseInt(btn.dataset.delElim);
+    await set(ref(db,`bolao/elimMatches/${eid}`),null);
+    await set(ref(db,`bolao/results/e_${eid}`),null);
+    return;
+  }
+
+  // Deletar jogador
+  if(btn.dataset.delPlayer){
+    if(!confirm(`Remover ${btn.dataset.delPlayer}?`))return;
+    await set(ref(db,`bolao/players/${btn.dataset.delPlayer}`),null);
+    return;
+  }
+}
+
 // ─── BIND ───
 function bindAll(){
   const lb=document.getElementById("btn-logout");
   if(lb)lb.onclick=()=>{
     currentUser=null;isAdmin=false;
+    clearSession();
     if(apiSyncInterval){clearInterval(apiSyncInterval);apiSyncInterval=null;}
     render();
   };
@@ -967,6 +1046,7 @@ function bindAll(){
     updates[`bolao/players/${currentUser}`]=null;
     await update(ref(db),updates);
     currentUser=newName;
+    saveSession();
     document.getElementById("username-modal").style.display="none";
     render();
   };
@@ -1012,31 +1092,10 @@ function bindAll(){
   document.querySelectorAll("input[data-rid]").forEach(inp=>{
     inp.oninput=()=>{const rid=inp.dataset.rid,side=inp.dataset.side;if(!localResults[rid])localResults[rid]={h:"",a:""};localResults[rid][side]=inp.value;};
   });
-  document.querySelectorAll("button[data-save-group]").forEach(btn=>{
-    btn.onclick=async()=>{
-      const g=btn.dataset.saveGroup,updates={};
-      GROUPS[g].matches.forEach(m=>{if(localResults[m.id]){if(localResults[m.id].h!=="")updates[`bolao/results/${m.id}/h`]=localResults[m.id].h;if(localResults[m.id].a!=="")updates[`bolao/results/${m.id}/a`]=localResults[m.id].a;}});
-      if(Object.keys(updates).length){await update(ref(db),updates);localResults={};}alert(`Grupo ${g} salvo!`);
-    };
-  });
-  document.querySelectorAll("button[data-add-elim]").forEach(btn=>{
-    btn.onclick=async()=>{const phase=btn.dataset.addElim,id=Date.now();await set(ref(db,`bolao/elimMatches/${id}`),{id,phase,home:"Time A",away:"Time B",date:"",time:"",city:""});};
-  });
-  document.querySelectorAll("button[data-save-elim]").forEach(btn=>{
-    btn.onclick=async()=>{
-      const eid=parseInt(btn.dataset.saveElim);
-      const get=side=>document.querySelector(`input[data-elim-id="${eid}"][data-elim-side="${side}"]`)?.value||"";
-      const updates={};["home","away","date","time","city"].forEach(s=>updates[`bolao/elimMatches/${eid}/${s}`]=get(s));
-      const rid='e_'+eid;if(localResults[rid]){if(localResults[rid].h!=="")updates[`bolao/results/${rid}/h`]=localResults[rid].h;if(localResults[rid].a!=="")updates[`bolao/results/${rid}/a`]=localResults[rid].a;}
-      await update(ref(db),updates);alert("Salvo!");
-    };
-  });
-  document.querySelectorAll("button[data-del-elim]").forEach(btn=>{
-    btn.onclick=async()=>{if(!confirm("Remover?"))return;const eid=parseInt(btn.dataset.delElim);await set(ref(db,`bolao/elimMatches/${eid}`),null);await set(ref(db,`bolao/results/e_${eid}`),null);};
-  });
-  document.querySelectorAll("button[data-del-player]").forEach(btn=>{
-    btn.onclick=async()=>{if(!confirm(`Remover ${btn.dataset.delPlayer}?`))return;await set(ref(db,`bolao/players/${btn.dataset.delPlayer}`),null);};
-  });
+  // Admin buttons via event delegation — garante funcionamento no GitHub Pages
+  document.removeEventListener("click",adminClickHandler);
+  document.addEventListener("click",adminClickHandler);
+
   const ap=document.getElementById("btn-add-player");
   if(ap)ap.onclick=async()=>{
     const name=document.getElementById("new-player-name").value.trim();

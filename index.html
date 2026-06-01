@@ -200,11 +200,6 @@ function clearSession(){
   localStorage.removeItem("bolao26_session");
 }
 
-// Auto-iniciar sync se sessão foi restaurada (aguarda Firebase carregar)
-if(currentUser||isAdmin){
-  setTimeout(()=>{if(currentUser||isAdmin)startApiSync();}, 3000);
-}
-
 onValue(ref(db,"bolao"),(snap)=>{
   const d=snap.val();
   if(d){
@@ -217,11 +212,11 @@ onValue(ref(db,"bolao"),(snap)=>{
   } else {
     set(ref(db,"bolao"),{secret:"copa2026",adminPass:"admin123",players:{},results:{},elimMatches:{},especiais:{}});
   }
-  // Se sessão restaurada mas jogador não existe mais no Firebase, desloga
-  if(currentUser && fbState.players && !fbState.players[currentUser]){
-    // não desloga automaticamente — pode ser timing. só renderiza.
-  }
   render();
+  // Auto-iniciar sync se sessão foi restaurada (só na primeira vez)
+  if((currentUser||isAdmin)&&!apiSyncInterval){
+    startApiSync();
+  }
 });
 
 function startClock(){
@@ -1070,6 +1065,7 @@ function bindAll(){
   };
 
 
+  const bse=document.getElementById("btn-save-esp");
   if(bse)bse.onclick=async()=>{
     const art=document.getElementById("esp-artilheiro")?.value.trim()||"";
     const cam=document.getElementById("esp-campeao")?.value||"";

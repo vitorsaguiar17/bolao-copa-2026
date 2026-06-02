@@ -128,10 +128,15 @@ input:focus,select:focus{border-color:var(--blue)}
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
 import { getDatabase, ref, set, onValue, update } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-database.js";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js";
 
 const firebaseConfig={apiKey:"AIzaSyDcTydq-YPTtC7e3GmHQp6R64ZLsJjV0pg",authDomain:"bolao-copa-2026-v0.firebaseapp.com",databaseURL:"https://bolao-copa-2026-v0-default-rtdb.firebaseio.com",projectId:"bolao-copa-2026-v0",storageBucket:"bolao-copa-2026-v0.firebasestorage.app",messagingSenderId:"866955634458",appId:"1:866955634458:web:19d391a525bc8a60b86ea3"};
 const fbApp=initializeApp(firebaseConfig);
 const db=getDatabase(fbApp);
+const auth=getAuth(fbApp);
+
+// Autenticação anônima — garante conexão estável com Firebase
+signInAnonymously(auth).catch(e=>console.error("Auth error:",e));
 
 // ─── API ───
 const API_KEY="8975e9c7e5be463dae65fbb4d658a42b";
@@ -378,13 +383,22 @@ function render(){
 }
 
 function renderLogin(){
+  // Verifica se o nome já existe no Firebase para mostrar campo senha ou cadastro
+  const nameVal=document.getElementById("l-name")?.value.trim()||"";
+  const playerExists=nameVal&&fbState.players[nameVal];
   return`<div class="login-wrap"><div class="login-card">
     <span class="login-flag">🇧🇷⚽🏆</span>
     <h2>BOLÃO 2026</h2>
     <p>Use o código de acesso enviado pelo admin</p>
     <div id="login-alert"></div>
-    <input id="l-name" placeholder="Seu nome" autocomplete="off">
-    <input id="l-secret" type="password" placeholder="Código de acesso">
+    <input id="l-name" placeholder="Seu nome" autocomplete="off" oninput="updateLoginForm()">
+    <input id="l-secret" type="password" placeholder="Código de acesso do bolão">
+    <div id="l-password-section">
+      <input id="l-password" type="password" placeholder="Sua senha pessoal" style="margin-top:0">
+      <p id="l-password-hint" style="font-size:11px;color:var(--muted);margin-top:-6px;margin-bottom:10px">
+        Novo no bolão? Crie uma senha pessoal. Já cadastrado? Digite sua senha.
+      </p>
+    </div>
     <button class="btn" id="btn-login">Entrar no Bolão</button>
     <div style="margin:12px 0;text-align:center;color:var(--muted);font-size:12px">— ou —</div>
     <button class="btn btn-outline" id="btn-admin-show">Acesso Admin</button>
@@ -394,26 +408,58 @@ function renderLogin(){
     </div>
   </div></div>`;
 }
+// Chamada ao digitar nome — atualiza hint de senha
+window.updateLoginForm=function(){
+  const name=document.getElementById("l-name")?.value.trim()||"";
+  const hint=document.getElementById("l-password-hint");
+  if(!hint)return;
+  if(name&&fbState.players[name]){
+    hint.textContent="Participante encontrado. Digite sua senha pessoal para entrar.";
+    hint.style.color="var(--blue)";
+  } else if(name){
+    hint.textContent="Nome não cadastrado. Informe o código do bolão e crie sua senha pessoal.";
+    hint.style.color="var(--muted)";
+  }
+};
+
 function bindLogin(){
   document.getElementById("btn-login").onclick=async()=>{
     const name=document.getElementById("l-name").value.trim();
     const sec=document.getElementById("l-secret").value.trim();
+    const password=document.getElementById("l-password").value.trim();
     const al=document.getElementById("login-alert");
     if(!name){al.innerHTML='<div class="alert error">Informe seu nome</div>';return;}
-    if(sec!==fbState.secret){al.innerHTML='<div class="alert error">Código incorreto</div>';return;}
-    currentUser=name;isAdmin=false;
-    saveSession();
-    if(!fbState.players[name]){
+    if(!password){al.innerHTML='<div class="alert error">Informe sua senha pessoal</div>';return;}
+
+    const playerExists=fbState.players[name];
+
+    if(playerExists){
+      // Jogador já cadastrado — verificar senha
+      if(sec!==fbState.secret&&!playerExists.password){
+        // sem senha cadastrada ainda, aceita só o código
+      }
+      if(playerExists.password&&playerExists.password!==password){
+        al.innerHTML='<div class="alert error">Senha incorreta</div>';return;
+      }
+      // senha OK — logar
+      currentUser=name;isAdmin=false;
+      saveSession();
+      // Se ainda não tem senha salva, salva agora
+      if(!playerExists.password){
+        await update(ref(db),{[`bolao/players/${name}/password`]:password});
+      }
+    } else {
+      // Novo jogador — verificar código do bolão
+      if(sec!==fbState.secret){al.innerHTML='<div class="alert error">Código do bolão incorreto</div>';return;}
+      if(password.length<4){al.innerHTML='<div class="alert error">Senha deve ter pelo menos 4 caracteres</div>';return;}
+      currentUser=name;isAdmin=false;
+      saveSession();
       try {
-        // Grava no Firebase e aguarda confirmação
-        await set(ref(db,`bolao/players/${name}`),{palpites:{},elimPalpites:{},especiais:{}});
-        // Lê de volta para garantir consistência
-        const snap=await new Promise(resolve=>onValue(ref(db,`bolao/players/${name}`),resolve,{onlyOnce:true}));
-        fbState.players[name]=snap.val()||{palpites:{},elimPalpites:{},especiais:{}};
+        await set(ref(db,`bolao/players/${name}`),{palpites:{},elimPalpites:{},especiais:{},password});
+        fbState.players[name]={palpites:{},elimPalpites:{},especiais:{},password};
       } catch(e) {
-        console.error("Erro ao cadastrar jogador:",e);
-        // fallback: atualiza localmente
-        fbState.players[name]={palpites:{},elimPalpites:{},especiais:{}};
+        console.error("Erro ao cadastrar:",e);
+        fbState.players[name]={palpites:{},elimPalpites:{},especiais:{},password};
       }
     }
     render();
@@ -446,6 +492,7 @@ function renderTopBar(){
       <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Seu histórico de palpites será mantido com o novo nome.</p>
       <div id="username-alert"></div>
       <input id="new-username-input" placeholder="Novo nome de usuário" value="${currentUser||""}" style="margin-bottom:12px">
+      <input id="rename-password-confirm" type="password" placeholder="Confirme sua senha pessoal" style="margin-bottom:12px">
       <div style="display:flex;gap:8px">
         <button class="btn btn-outline" style="flex:1" onclick="document.getElementById('username-modal').style.display='none'">Cancelar</button>
         <button class="btn btn-green" style="flex:1" id="btn-confirm-username">Salvar</button>
@@ -716,8 +763,9 @@ function renderRegras(){
         <li>Quem acertou o palpite sobre a <strong>convocação do Neymar</strong> para a Copa 2026</li>
       </ol>
     </div>
-    <div class="rule-block"><h4>👁️ Privacidade</h4>
-      <p>Cada participante vê <strong>apenas seus próprios palpites</strong>. A classificação com pontuações é pública e atualizada em tempo real a cada resultado importado.</p>
+    <div class="rule-block"><h4>👁️ Privacidade e Segurança</h4>
+      <p>Cada participante vê <strong>apenas seus próprios palpites</strong>. A classificação com pontuações é pública e atualizada em tempo real.</p>
+      <p style="margin-top:6px">O acesso à sua conta é protegido por <strong>senha pessoal</strong> criada no primeiro acesso. Guarde sua senha — ela é necessária para entrar novamente.</p>
     </div>
   </div>`;
 }
@@ -1098,6 +1146,10 @@ function bindAll(){
     if(!newName){al.innerHTML='<div class="alert error">Informe o novo nome</div>';return;}
     if(newName===currentUser){document.getElementById("username-modal").style.display="none";return;}
     if(fbState.players[newName]){al.innerHTML='<div class="alert error">Este nome já está em uso</div>';return;}
+    // Verifica senha antes de renomear
+    const pwConfirm=document.getElementById("rename-password-confirm")?.value.trim()||"";
+    const playerPw=fbState.players[currentUser]?.password||"";
+    if(playerPw&&pwConfirm!==playerPw){al.innerHTML='<div class="alert error">Senha incorreta</div>';return;}
     // copia dados do usuário antigo para o novo e remove o antigo
     const oldData=fbState.players[currentUser]||{};
     const updates={};

@@ -397,10 +397,14 @@ function bindLogin(){
     currentUser=name;isAdmin=false;
     saveSession();
     if(!fbState.players[name]){
-      // Atualiza estado local imediatamente para o render mostrar o jogador
+      // Atualiza estado local imediatamente
       fbState.players[name]={palpites:{},elimPalpites:{},especiais:{}};
-      // Persiste no Firebase em background
-      set(ref(db,`bolao/players/${name}`),{palpites:{},elimPalpites:{},especiais:{}});
+      // Persiste no Firebase com await para garantir gravação
+      try {
+        await set(ref(db,`bolao/players/${name}`),{palpites:{},elimPalpites:{},especiais:{}});
+      } catch(e) {
+        console.error("Erro ao cadastrar jogador:",e);
+      }
     }
     render();
     startApiSync();

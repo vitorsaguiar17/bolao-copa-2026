@@ -101,6 +101,12 @@ input:focus,select:focus{border-color:var(--blue)}
 .api-card{background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:14px;margin-bottom:10px}
 .api-card h4{color:var(--blue);font-size:14px;font-weight:600;margin-bottom:6px}
 @keyframes spin{to{transform:rotate(360deg)}}
+.view-toggle{display:flex;gap:4px;margin-bottom:14px}
+.view-btn{padding:6px 16px;border-radius:20px;border:1.5px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-size:12px;font-family:'DM Sans',sans-serif;font-weight:600;transition:.15s}
+.view-btn.active{background:var(--blue);border-color:var(--blue);color:#fff}
+.view-btn:hover:not(.active){border-color:var(--blue);color:var(--blue)}
+.date-group{margin-bottom:20px}
+.date-label{font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--blue);margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid var(--gold)}
 </style>
 </head>
 <body>
@@ -187,6 +193,7 @@ const _sess=JSON.parse(localStorage.getItem("bolao26_session")||"{}");
 let currentUser=_sess.currentUser||null;
 let isAdmin=_sess.isAdmin||false;
 let currentTab="ranking",currentPhase="Grupos",detailPlayer=null;
+let palpiteView=localStorage.getItem("bolao26_view")||"grupo";
 let localResults={};
 let inputBuffer={};
 let autoSaveTimers={};
@@ -487,44 +494,68 @@ function renderPalpites(){
   const autoSaveInfo=!isAdmin?`<div class="alert info" style="margin-bottom:12px">💡 Seus palpites são salvos automaticamente assim que você preencher os dois campos de cada jogo.</div>`:"";
 
   if(currentPhase==="Grupos"){
-    let html="";
-    Object.keys(GROUPS).forEach(g=>{
-      html+=`<div class="match-group"><div class="group-label">Grupo ${g} <span style="font-size:13px;font-family:'DM Sans';font-weight:400;color:var(--muted)">${GROUPS[g].teams.map(t=>flag(t)).join(" ")}</span></div>`;
-      GROUPS[g].matches.forEach(m=>{
-        const mt=matchTime(m.date,m.time);
-        const hasResult=fbState.results[m.id]?.h!==undefined;
-        const locked=isLocked(mt,hasResult);
-        const state=matchState(mt,hasResult);
-        const pl=viewPlayer?fbState.players[viewPlayer]:null;
-        const savedPal=pl?.palpites?.[m.id];
-        const res=fbState.results[m.id];
-        const pts=viewPlayer&&hasResult?calcPts(savedPal,res,1):null;
-        const rowClass=state==="played"?"played":state==="locked"?"locked":state==="soon"?"warning":"";
-        const key=String(m.id);
-        html+=`<div class="match-row ${rowClass}">
-          ${pts!==null?`<div class="pts-badge ${pts===0?"zero":""}">${pts===0?"✗ 0":"+"+pts}pt${pts!==1?"s":""}</div>`:""}
-          <div class="match-team">${flag(m.home)} ${m.home}</div>
-          <div class="match-info">
-            <div class="score-inputs">
-              <input class="score-input" type="number" min="0" max="99"
-                data-mid="${m.id}" data-side="h" data-isElim="false"
-                value="${savedPal?.h??""}" ${locked&&!isAdmin?'disabled':""}>
-              <span class="score-sep">×</span>
-              <input class="score-input" type="number" min="0" max="99"
-                data-mid="${m.id}" data-side="a" data-isElim="false"
-                value="${savedPal?.a??""}" ${locked&&!isAdmin?'disabled':""}>
-            </div>
-            <div class="match-date-label">${m.time} BRT · ${m.date} · ${m.city}</div>
-            <div style="margin-top:3px">${lockBadge(mt,hasResult)}</div>
-            ${hasResult?`<div style="font-size:10px;color:var(--green);margin-top:2px">Resultado: ${res.h}×${res.a}</div>`:""}
-            ${!isAdmin&&!locked?`<div id="status_${key}" class="save-status">${savedPal?.h!==undefined?"✅ Palpite salvo":""}</div>`:""}
+    // Toggle de visualização
+    const viewToggle=`<div class="view-toggle">
+      <button class="view-btn ${palpiteView==="grupo"?"active":""}" data-view="grupo">📋 Por Grupo</button>
+      <button class="view-btn ${palpiteView==="data"?"active":""}" data-view="data">📅 Por Data</button>
+    </div>`;
+
+    // Função auxiliar para renderizar uma linha de jogo
+    function mkRow(m,vp){
+      const mt=matchTime(m.date,m.time);
+      const hasResult=fbState.results[m.id]?.h!==undefined;
+      const locked=isLocked(mt,hasResult);
+      const state=matchState(mt,hasResult);
+      const pl=vp?fbState.players[vp]:null;
+      const savedPal=pl?.palpites?.[m.id];
+      const res=fbState.results[m.id];
+      const pts=vp&&hasResult?calcPts(savedPal,res,1):null;
+      const rowClass=state==="played"?"played":state==="locked"?"locked":state==="soon"?"warning":"";
+      const key=String(m.id);
+      return `<div class="match-row ${rowClass}">
+        ${pts!==null?`<div class="pts-badge ${pts===0?"zero":""}">${pts===0?"✗ 0":"+"+pts}pt${pts!==1?"s":""}</div>`:""}
+        <div class="match-team">${flag(m.home)} ${m.home}</div>
+        <div class="match-info">
+          <div class="score-inputs">
+            <input class="score-input" type="number" min="0" max="99"
+              data-mid="${m.id}" data-side="h"
+              value="${savedPal?.h??""}" ${locked&&!isAdmin?'disabled':""}>
+            <span class="score-sep">×</span>
+            <input class="score-input" type="number" min="0" max="99"
+              data-mid="${m.id}" data-side="a"
+              value="${savedPal?.a??""}" ${locked&&!isAdmin?'disabled':""}>
           </div>
-          <div class="match-team right">${m.away} ${flag(m.away)}</div>
-        </div>`;
+          <div class="match-date-label">Grupo ${m.group} · ${m.time} BRT · ${m.date} · ${m.city}</div>
+          <div style="margin-top:3px">${lockBadge(mt,hasResult)}</div>
+          ${hasResult?`<div style="font-size:10px;color:var(--green);margin-top:2px">Resultado: ${res.h}×${res.a}</div>`:""}
+          ${!isAdmin&&!locked?`<div id="status_${key}" class="save-status">${savedPal?.h!==undefined?"✅ Palpite salvo":""}</div>`:""}
+        </div>
+        <div class="match-team right">${m.away} ${flag(m.away)}</div>
+      </div>`;
+    }
+
+    let html="";
+    if(palpiteView==="grupo"){
+      Object.keys(GROUPS).forEach(g=>{
+        html+=`<div class="match-group"><div class="group-label">Grupo ${g} <span style="font-size:13px;font-family:'DM Sans';font-weight:400;color:var(--muted)">${GROUPS[g].teams.map(t=>flag(t)).join(" ")}</span></div>`;
+        GROUPS[g].matches.forEach(m=>{ html+=mkRow({...m,group:g},viewPlayer); });
+        html+="</div>";
       });
-      html+="</div>";
-    });
-    return phTabs+warnBanner+autoSaveInfo+playerSel+html;
+    } else {
+      // Por data — ordenar todos os jogos cronologicamente
+      const weekdays=["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+      const sorted=GROUP_MATCHES.slice().sort((a,b)=>matchTime(a.date,a.time)-matchTime(b.date,b.time));
+      const byDate={};
+      sorted.forEach(m=>{ if(!byDate[m.date])byDate[m.date]=[]; byDate[m.date].push(m); });
+      Object.entries(byDate).forEach(([date,matches])=>{
+        const brt=new Date(matchTime(date,"12h").getTime()-3*3600000);
+        const wd=weekdays[brt.getUTCDay()];
+        html+=`<div class="date-group"><div class="date-label">📅 ${date} <span style="font-size:14px;font-family:'DM Sans';font-weight:400;color:var(--muted)">${wd}</span></div>`;
+        matches.forEach(m=>{ html+=mkRow(m,viewPlayer); });
+        html+="</div>";
+      });
+    }
+    return phTabs+viewToggle+warnBanner+autoSaveInfo+playerSel+html;
   } else {
     const elimMs=fbState.elimMatches.filter(m=>m.phase===currentPhase);
     if(!elimMs.length)return phTabs+playerSel+`<div class="empty"><div class="icon">⏳</div><p>Confrontos desta fase ainda não definidos. Serão importados automaticamente da API assim que a FIFA anunciar os jogos.</p></div>`;
@@ -996,6 +1027,7 @@ function bindAll(){
   };
   document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{currentTab=t.dataset.tab;render();});
   document.querySelectorAll(".phase-tab").forEach(t=>t.onclick=()=>{currentPhase=t.dataset.phase;render();});
+  document.querySelectorAll(".view-btn").forEach(b=>b.onclick=()=>{palpiteView=b.dataset.view;localStorage.setItem("bolao26_view",palpiteView);render();});
   const dps=document.getElementById("sel-detail-player");if(dps)dps.onchange=()=>{detailPlayer=dps.value||null;render();};
   const dpse=document.getElementById("sel-detail-player-esp");if(dpse)dpse.onchange=()=>{detailPlayer=dpse.value||null;render();};
 

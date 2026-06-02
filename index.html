@@ -208,6 +208,7 @@ function clearSession(){
 }
 
 // Listener principal — configurações, resultados, fases eliminatórias
+let renderTimer=null;
 onValue(ref(db,"bolao"),(snap)=>{
   const d=snap.val();
   if(d){
@@ -220,23 +221,17 @@ onValue(ref(db,"bolao"),(snap)=>{
   } else {
     set(ref(db,"bolao"),{secret:"copa2026",adminPass:"admin123",players:{},results:{},elimMatches:{},especiais:{}});
   }
-  render();
-  if((currentUser||isAdmin)&&!apiSyncInterval){
-    startApiSync();
-  }
+  // Debounce render para evitar múltiplos re-renders simultâneos
+  clearTimeout(renderTimer);
+  renderTimer=setTimeout(()=>{
+    render();
+    if((currentUser||isAdmin)&&!apiSyncInterval){
+      startApiSync();
+    }
+  },100);
 });
 
-// Listener dedicado para players — garante atualização em tempo real para todos
-onValue(ref(db,"bolao/players"),(snap)=>{
-  const players=snap.val()||{};
-  // Só atualiza se houver diferença (novo jogador ou remoção)
-  const currentKeys=Object.keys(fbState.players).sort().join(",");
-  const newKeys=Object.keys(players).sort().join(",");
-  if(currentKeys!==newKeys){
-    fbState.players=players;
-    render();
-  }
-});
+
 
 function startClock(){
   if(clockInterval)clearInterval(clockInterval);
@@ -409,13 +404,16 @@ function bindLogin(){
     currentUser=name;isAdmin=false;
     saveSession();
     if(!fbState.players[name]){
-      // Atualiza estado local imediatamente
-      fbState.players[name]={palpites:{},elimPalpites:{},especiais:{}};
-      // Persiste no Firebase com await para garantir gravação
       try {
+        // Grava no Firebase e aguarda confirmação
         await set(ref(db,`bolao/players/${name}`),{palpites:{},elimPalpites:{},especiais:{}});
+        // Lê de volta para garantir consistência
+        const snap=await new Promise(resolve=>onValue(ref(db,`bolao/players/${name}`),resolve,{onlyOnce:true}));
+        fbState.players[name]=snap.val()||{palpites:{},elimPalpites:{},especiais:{}};
       } catch(e) {
         console.error("Erro ao cadastrar jogador:",e);
+        // fallback: atualiza localmente
+        fbState.players[name]={palpites:{},elimPalpites:{},especiais:{}};
       }
     }
     render();

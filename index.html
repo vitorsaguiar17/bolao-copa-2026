@@ -1186,7 +1186,12 @@ function bindAll(){
     inp.oninput=()=>{
       if(isAdmin)return;
       const mid=String(inp.dataset.mid),side=inp.dataset.side;
-      if(!inputBuffer[mid])inputBuffer[mid]={};
+      if(!inputBuffer[mid]){
+        // Inicializa buffer com valores já salvos para que edição de 1 campo funcione
+        const pl=currentUser?fbState.players[currentUser]:null;
+        const saved=pl?.palpites?.[mid];
+        inputBuffer[mid]={h:saved?.h??'',a:saved?.a??''};
+      }
       inputBuffer[mid][side]=inp.value;
       const buf=inputBuffer[mid];
       if(buf.h!==undefined&&buf.h!==""&&buf.a!==undefined&&buf.a!==""){
@@ -1211,7 +1216,11 @@ function bindAll(){
     inp.oninput=()=>{
       if(isAdmin)return;
       const eid=inp.dataset.eid,side=inp.dataset.side;
-      if(!inputBuffer[eid])inputBuffer[eid]={};
+      if(!inputBuffer[eid]){
+        const pl=currentUser?fbState.players[currentUser]:null;
+        const saved=pl?.elimPalpites?.[eid];
+        inputBuffer[eid]={h:saved?.h??'',a:saved?.a??''};
+      }
       inputBuffer[eid][side]=inp.value;
       const buf=inputBuffer[eid];
       if(buf.h!==undefined&&buf.h!==""&&buf.a!==undefined&&buf.a!==""){

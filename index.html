@@ -170,22 +170,106 @@ function fmtLockBRT(mt){
   return`${brt.getUTCDate().toString().padStart(2,"0")}/${(brt.getUTCMonth()+1).toString().padStart(2,"0")} às ${brt.getUTCHours().toString().padStart(2,"0")}h${brt.getUTCMinutes()>0?brt.getUTCMinutes().toString().padStart(2,"0"):""}`;
 }
 
-const FLAGS={"México":"🇲🇽","Coreia do Sul":"🇰🇷","República Tcheca":"🇨🇿","África do Sul":"🇿🇦","Canadá":"🇨🇦","Bósnia e Herzegovina":"🇧🇦","Catar":"🇶🇦","Suíça":"🇨🇭","Brasil":"🇧🇷","Marrocos":"🇲🇦","Escócia":"🏴󠁧󠁢󠁳󠁣󠁴󠁿","Haiti":"🇭🇹","Estados Unidos":"🇺🇸","Austrália":"🇦🇺","Turquia":"🇹🇷","Paraguai":"🇵🇾","Alemanha":"🇩🇪","Costa do Marfim":"🇨🇮","Equador":"🇪🇨","Curaçao":"🇨🇼","Holanda":"🇳🇱","Japão":"🇯🇵","Suécia":"🇸🇪","Tunísia":"🇹🇳","Bélgica":"🇧🇪","Irã":"🇮🇷","Nova Zelândia":"🇳🇿","Egito":"🇪🇬","Espanha":"🇪🇸","Cabo Verde":"🇨🇻","Arábia Saudita":"🇸🇦","Uruguai":"🇺🇾","França":"🇫🇷","Senegal":"🇸🇳","Noruega":"🇳🇴","Iraque":"🇮🇶","Itália":"🇮🇹","Argentina":"🇦🇷","Argélia":"🇩🇿","Áustria":"🇦🇹","Jordânia":"🇯🇴","Portugal":"🇵🇹","R. D. Congo":"🇨🇩","Colômbia":"🇨🇴","Uzbequistão":"🇺🇿","Inglaterra":"🏴󠁧󠁢󠁥󠁮󠁧󠁿","Croácia":"🇭🇷","Gana":"🇬🇭","Panamá":"🇵🇦"};
+const FLAGS={"México":"🇲🇽","África do Sul":"🇿🇦","Coreia do Sul":"🇰🇷","República Tcheca":"🇨🇿","Canadá":"🇨🇦","Bósnia e Herzegovina":"🇧🇦","Catar":"🇶🇦","Suíça":"🇨🇭","Brasil":"🇧🇷","Marrocos":"🇲🇦","Haiti":"🇭🇹","Escócia":"🏴󠁧󠁢󠁳󠁣󠁴󠁿","Estados Unidos":"🇺🇸","Paraguai":"🇵🇾","Austrália":"🇦🇺","Turquia":"🇹🇷","Alemanha":"🇩🇪","Curaçao":"🇨🇼","Costa do Marfim":"🇨🇮","Equador":"🇪🇨","Holanda":"🇳🇱","Japão":"🇯🇵","Suécia":"🇸🇪","Tunísia":"🇹🇳","Bélgica":"🇧🇪","Egito":"🇪🇬","Irã":"🇮🇷","Nova Zelândia":"🇳🇿","Espanha":"🇪🇸","Cabo Verde":"🇨🇻","Arábia Saudita":"🇸🇦","Uruguai":"🇺🇾","França":"🇫🇷","Senegal":"🇸🇳","Iraque":"🇮🇶","Noruega":"🇳🇴","Argentina":"🇦🇷","Argélia":"🇩🇿","Áustria":"🇦🇹","Jordânia":"🇯🇴","Inglaterra":"🏴󠁧󠁢󠁥󠁮󠁧󠁿","Croácia":"🇭🇷","Gana":"🇬🇭","Panamá":"🇵🇦","Portugal":"🇵🇹","R. D. Congo":"🇨🇩","Uzbequistão":"🇺🇿","Colômbia":"🇨🇴"};
 function flag(t){return FLAGS[t]||"🏳️"}
 
 const GROUPS={
-  A:{teams:["México","Coreia do Sul","República Tcheca","África do Sul"],matches:[{id:1,home:"México",away:"Coreia do Sul",date:"11/06",time:"16h",city:"Cidade do México"},{id:2,home:"República Tcheca",away:"África do Sul",date:"11/06",time:"23h",city:"Guadalajara"},{id:25,home:"República Tcheca",away:"Coreia do Sul",date:"18/06",time:"13h",city:"Atlanta"},{id:26,home:"México",away:"África do Sul",date:"18/06",time:"22h",city:"Guadalajara"},{id:53,home:"República Tcheca",away:"México",date:"24/06",time:"22h",city:"Cidade do México"},{id:54,home:"África do Sul",away:"Coreia do Sul",date:"24/06",time:"22h",city:"Monterrey"}]},
-  B:{teams:["Canadá","Bósnia e Herzegovina","Catar","Suíça"],matches:[{id:3,home:"Canadá",away:"Bósnia e Herzegovina",date:"12/06",time:"16h",city:"Toronto"},{id:6,home:"Catar",away:"Suíça",date:"13/06",time:"16h",city:"Santa Clara"},{id:27,home:"Suíça",away:"Bósnia e Herzegovina",date:"18/06",time:"16h",city:"Los Angeles"},{id:28,home:"Canadá",away:"Catar",date:"19/06",time:"19h",city:"Vancouver"},{id:51,home:"Suíça",away:"Canadá",date:"24/06",time:"16h",city:"Vancouver"},{id:52,home:"Bósnia e Herzegovina",away:"Catar",date:"24/06",time:"16h",city:"Seattle"}]},
-  C:{teams:["Brasil","Marrocos","Escócia","Haiti"],matches:[{id:7,home:"Brasil",away:"Marrocos",date:"13/06",time:"19h",city:"Nova York/NJ"},{id:8,home:"Escócia",away:"Haiti",date:"13/06",time:"22h",city:"Boston"},{id:29,home:"Escócia",away:"Marrocos",date:"19/06",time:"19h",city:"Boston"},{id:30,home:"Brasil",away:"Haiti",date:"19/06",time:"21h30",city:"Filadélfia"},{id:49,home:"Escócia",away:"Brasil",date:"24/06",time:"19h",city:"Miami"},{id:50,home:"Marrocos",away:"Haiti",date:"24/06",time:"19h",city:"Atlanta"}]},
-  D:{teams:["Estados Unidos","Austrália","Turquia","Paraguai"],matches:[{id:4,home:"Estados Unidos",away:"Paraguai",date:"12/06",time:"22h",city:"Los Angeles"},{id:5,home:"Austrália",away:"Turquia",date:"14/06",time:"1h",city:"Vancouver"},{id:31,home:"Turquia",away:"Paraguai",date:"20/06",time:"8h",city:"Santa Clara"},{id:32,home:"Estados Unidos",away:"Austrália",date:"20/06",time:"16h",city:"Seattle"},{id:59,home:"Turquia",away:"Estados Unidos",date:"25/06",time:"23h",city:"Los Angeles"},{id:60,home:"Paraguai",away:"Austrália",date:"25/06",time:"23h",city:"Santa Clara"}]},
-  E:{teams:["Alemanha","Costa do Marfim","Equador","Curaçao"],matches:[{id:10,home:"Alemanha",away:"Costa do Marfim",date:"14/06",time:"14h",city:"Houston"},{id:11,home:"Equador",away:"Curaçao",date:"14/06",time:"20h",city:"Filadélfia"},{id:33,home:"Alemanha",away:"Curaçao",date:"20/06",time:"17h",city:"Toronto"},{id:34,home:"Equador",away:"Costa do Marfim",date:"20/06",time:"21h",city:"Kansas City"},{id:55,home:"Equador",away:"Alemanha",date:"25/06",time:"17h",city:"Nova York/NJ"},{id:56,home:"Costa do Marfim",away:"Curaçao",date:"25/06",time:"17h",city:"Filadélfia"}]},
-  F:{teams:["Holanda","Japão","Suécia","Tunísia"],matches:[{id:12,home:"Holanda",away:"Japão",date:"14/06",time:"17h",city:"Dallas"},{id:9,home:"Suécia",away:"Tunísia",date:"14/06",time:"23h",city:"Monterrey"},{id:35,home:"Tunísia",away:"Japão",date:"21/06",time:"1h",city:"Monterrey"},{id:36,home:"Holanda",away:"Suécia",date:"21/06",time:"14h",city:"Houston"},{id:57,home:"Japão",away:"Suécia",date:"25/06",time:"20h",city:"Dallas"},{id:58,home:"Tunísia",away:"Holanda",date:"25/06",time:"20h",city:"Kansas City"}]},
-  G:{teams:["Bélgica","Irã","Nova Zelândia","Egito"],matches:[{id:16,home:"Bélgica",away:"Egito",date:"15/06",time:"16h",city:"Seattle"},{id:15,home:"Irã",away:"Nova Zelândia",date:"15/06",time:"22h",city:"Los Angeles"},{id:38,home:"Bélgica",away:"Irã",date:"21/06",time:"16h",city:"Los Angeles"},{id:39,home:"Nova Zelândia",away:"Egito",date:"21/06",time:"22h",city:"Vancouver"},{id:63,home:"Nova Zelândia",away:"Bélgica",date:"27/06",time:"8h",city:"Seattle"},{id:64,home:"Egito",away:"Irã",date:"27/06",time:"8h",city:"Vancouver"}]},
-  H:{teams:["Espanha","Cabo Verde","Arábia Saudita","Uruguai"],matches:[{id:14,home:"Espanha",away:"Cabo Verde",date:"15/06",time:"13h",city:"Atlanta"},{id:13,home:"Arábia Saudita",away:"Uruguai",date:"15/06",time:"19h",city:"Miami"},{id:37,home:"Espanha",away:"Arábia Saudita",date:"21/06",time:"19h",city:"Miami"},{id:40,home:"Uruguai",away:"Cabo Verde",date:"21/06",time:"21h",city:"Atlanta"},{id:65,home:"Cabo Verde",away:"Arábia Saudita",date:"26/06",time:"21h",city:"Houston"},{id:66,home:"Uruguai",away:"Espanha",date:"26/06",time:"21h",city:"Guadalajara"}]},
-  I:{teams:["França","Senegal","Noruega","Iraque"],matches:[{id:17,home:"França",away:"Senegal",date:"16/06",time:"16h",city:"Nova York/NJ"},{id:18,home:"Noruega",away:"Iraque",date:"16/06",time:"19h",city:"Boston"},{id:41,home:"França",away:"Noruega",date:"22/06",time:"18h",city:"Nova York/NJ"},{id:42,home:"Iraque",away:"Senegal",date:"22/06",time:"21h",city:"Filadélfia"},{id:61,home:"Noruega",away:"Senegal",date:"26/06",time:"16h",city:"Boston"},{id:62,home:"Iraque",away:"França",date:"26/06",time:"16h",city:"Toronto"}]},
-  J:{teams:["Argentina","Áustria","Argélia","Jordânia"],matches:[{id:19,home:"Argentina",away:"Argélia",date:"16/06",time:"22h",city:"Kansas City"},{id:20,home:"Áustria",away:"Jordânia",date:"17/06",time:"1h",city:"Santa Clara"},{id:43,home:"Argentina",away:"Áustria",date:"22/06",time:"14h",city:"Dallas"},{id:44,home:"Jordânia",away:"Argélia",date:"23/06",time:"8h",city:"Santa Clara"},{id:69,home:"Argélia",away:"Áustria",date:"27/06",time:"23h",city:"Kansas City"},{id:70,home:"Jordânia",away:"Argentina",date:"27/06",time:"23h",city:"Dallas"}]},
-  K:{teams:["Portugal","R. D. Congo","Colômbia","Uzbequistão"],matches:[{id:23,home:"Portugal",away:"R. D. Congo",date:"17/06",time:"14h",city:"Houston"},{id:24,home:"Colômbia",away:"Uzbequistão",date:"17/06",time:"23h",city:"Cidade do México"},{id:47,home:"Portugal",away:"Colômbia",date:"23/06",time:"14h",city:"Houston"},{id:48,home:"Uzbequistão",away:"R. D. Congo",date:"23/06",time:"23h",city:"Guadalajara"},{id:71,home:"Colômbia",away:"Portugal",date:"27/06",time:"20h30",city:"Miami"},{id:72,home:"R. D. Congo",away:"Uzbequistão",date:"27/06",time:"20h30",city:"Atlanta"}]},
-  L:{teams:["Inglaterra","Croácia","Gana","Panamá"],matches:[{id:22,home:"Inglaterra",away:"Croácia",date:"17/06",time:"17h",city:"Dallas"},{id:21,home:"Gana",away:"Panamá",date:"17/06",time:"20h",city:"Toronto"},{id:45,home:"Inglaterra",away:"Gana",date:"23/06",time:"17h",city:"Boston"},{id:46,home:"Panamá",away:"Croácia",date:"23/06",time:"20h",city:"Toronto"},{id:67,home:"Panamá",away:"Inglaterra",date:"27/06",time:"18h",city:"Nova York/NJ"},{id:68,home:"Croácia",away:"Gana",date:"27/06",time:"18h",city:"Filadélfia"}]}
+  A:{teams:["México","África do Sul","Coreia do Sul","República Tcheca"],matches:[
+    {id:1,home:"México",away:"África do Sul",date:"11/06",time:"16h",city:"Mexico City"},
+    {id:2,home:"Coreia do Sul",away:"República Tcheca",date:"11/06",time:"23h",city:"Guadalajara"},
+    {id:25,home:"República Tcheca",away:"África do Sul",date:"18/06",time:"13h",city:"Atlanta"},
+    {id:28,home:"México",away:"Coreia do Sul",date:"18/06",time:"22h",city:"Guadalajara"},
+    {id:53,home:"República Tcheca",away:"México",date:"24/06",time:"22h",city:"Mexico City"},
+    {id:54,home:"África do Sul",away:"Coreia do Sul",date:"24/06",time:"22h",city:"Monterrey"}
+  ]},
+  B:{teams:["Canadá","Bósnia e Herzegovina","Catar","Suíça"],matches:[
+    {id:3,home:"Canadá",away:"Bósnia e Herzegovina",date:"12/06",time:"16h",city:"Toronto"},
+    {id:8,home:"Catar",away:"Suíça",date:"13/06",time:"16h",city:"San Francisco/Bay Area"},
+    {id:26,home:"Suíça",away:"Bósnia e Herzegovina",date:"18/06",time:"16h",city:"Los Angeles"},
+    {id:27,home:"Canadá",away:"Catar",date:"18/06",time:"19h",city:"Vancouver"},
+    {id:51,home:"Suíça",away:"Canadá",date:"24/06",time:"16h",city:"Vancouver"},
+    {id:52,home:"Bósnia e Herzegovina",away:"Catar",date:"24/06",time:"16h",city:"Seattle"}
+  ]},
+  C:{teams:["Brasil","Marrocos","Haiti","Escócia"],matches:[
+    {id:7,home:"Brasil",away:"Marrocos",date:"13/06",time:"19h",city:"New York/New Jersey"},
+    {id:5,home:"Haiti",away:"Escócia",date:"13/06",time:"22h",city:"Boston"},
+    {id:30,home:"Escócia",away:"Marrocos",date:"19/06",time:"19h",city:"Boston"},
+    {id:29,home:"Brasil",away:"Haiti",date:"19/06",time:"21h30",city:"Philadelphia"},
+    {id:49,home:"Escócia",away:"Brasil",date:"24/06",time:"19h",city:"Miami"},
+    {id:50,home:"Marrocos",away:"Haiti",date:"24/06",time:"19h",city:"Atlanta"}
+  ]},
+  D:{teams:["Estados Unidos","Paraguai","Austrália","Turquia"],matches:[
+    {id:4,home:"Estados Unidos",away:"Paraguai",date:"12/06",time:"22h",city:"Los Angeles"},
+    {id:6,home:"Austrália",away:"Turquia",date:"14/06",time:"1h",city:"Vancouver"},
+    {id:32,home:"Estados Unidos",away:"Austrália",date:"19/06",time:"16h",city:"Seattle"},
+    {id:31,home:"Turquia",away:"Paraguai",date:"20/06",time:"0h",city:"San Francisco/Bay Area"},
+    {id:59,home:"Turquia",away:"Estados Unidos",date:"25/06",time:"23h",city:"Los Angeles"},
+    {id:60,home:"Paraguai",away:"Austrália",date:"25/06",time:"23h",city:"San Francisco/Bay Area"}
+  ]},
+  E:{teams:["Alemanha","Curaçao","Costa do Marfim","Equador"],matches:[
+    {id:10,home:"Alemanha",away:"Curaçao",date:"14/06",time:"14h",city:"Houston"},
+    {id:9,home:"Costa do Marfim",away:"Equador",date:"14/06",time:"20h",city:"Philadelphia"},
+    {id:33,home:"Alemanha",away:"Costa do Marfim",date:"20/06",time:"17h",city:"Toronto"},
+    {id:34,home:"Equador",away:"Curaçao",date:"20/06",time:"21h",city:"Kansas City"},
+    {id:56,home:"Equador",away:"Alemanha",date:"25/06",time:"17h",city:"New York/New Jersey"},
+    {id:55,home:"Curaçao",away:"Costa do Marfim",date:"25/06",time:"17h",city:"Philadelphia"}
+  ]},
+  F:{teams:["Holanda","Japão","Suécia","Tunísia"],matches:[
+    {id:11,home:"Holanda",away:"Japão",date:"14/06",time:"17h",city:"Dallas"},
+    {id:12,home:"Suécia",away:"Tunísia",date:"14/06",time:"23h",city:"Monterrey"},
+    {id:35,home:"Holanda",away:"Suécia",date:"20/06",time:"14h",city:"Houston"},
+    {id:36,home:"Tunísia",away:"Japão",date:"21/06",time:"1h",city:"Monterrey"},
+    {id:57,home:"Japão",away:"Suécia",date:"25/06",time:"20h",city:"Dallas"},
+    {id:58,home:"Tunísia",away:"Holanda",date:"25/06",time:"20h",city:"Kansas City"}
+  ]},
+  G:{teams:["Bélgica","Egito","Irã","Nova Zelândia"],matches:[
+    {id:16,home:"Bélgica",away:"Egito",date:"15/06",time:"16h",city:"Seattle"},
+    {id:15,home:"Irã",away:"Nova Zelândia",date:"15/06",time:"22h",city:"Los Angeles"},
+    {id:39,home:"Bélgica",away:"Irã",date:"21/06",time:"16h",city:"Los Angeles"},
+    {id:40,home:"Nova Zelândia",away:"Egito",date:"21/06",time:"22h",city:"Vancouver"},
+    {id:64,home:"Nova Zelândia",away:"Bélgica",date:"27/06",time:"0h",city:"Vancouver"},
+    {id:63,home:"Egito",away:"Irã",date:"27/06",time:"0h",city:"Seattle"}
+  ]},
+  H:{teams:["Espanha","Cabo Verde","Arábia Saudita","Uruguai"],matches:[
+    {id:14,home:"Espanha",away:"Cabo Verde",date:"15/06",time:"13h",city:"Atlanta"},
+    {id:13,home:"Arábia Saudita",away:"Uruguai",date:"15/06",time:"19h",city:"Miami"},
+    {id:38,home:"Espanha",away:"Arábia Saudita",date:"21/06",time:"13h",city:"Atlanta"},
+    {id:37,home:"Uruguai",away:"Cabo Verde",date:"21/06",time:"19h",city:"Miami"},
+    {id:65,home:"Cabo Verde",away:"Arábia Saudita",date:"26/06",time:"21h",city:"Houston"},
+    {id:66,home:"Uruguai",away:"Espanha",date:"26/06",time:"21h",city:"Guadalajara"}
+  ]},
+  I:{teams:["França","Senegal","Iraque","Noruega"],matches:[
+    {id:17,home:"França",away:"Senegal",date:"16/06",time:"16h",city:"New York/New Jersey"},
+    {id:18,home:"Iraque",away:"Noruega",date:"16/06",time:"19h",city:"Boston"},
+    {id:42,home:"França",away:"Iraque",date:"22/06",time:"18h",city:"Philadelphia"},
+    {id:41,home:"Noruega",away:"Senegal",date:"22/06",time:"21h",city:"New York/New Jersey"},
+    {id:61,home:"Noruega",away:"França",date:"26/06",time:"16h",city:"Boston"},
+    {id:62,home:"Senegal",away:"Iraque",date:"26/06",time:"16h",city:"Toronto"}
+  ]},
+  J:{teams:["Argentina","Argélia","Áustria","Jordânia"],matches:[
+    {id:19,home:"Argentina",away:"Argélia",date:"16/06",time:"22h",city:"Kansas City"},
+    {id:20,home:"Áustria",away:"Jordânia",date:"17/06",time:"1h",city:"San Francisco/Bay Area"},
+    {id:43,home:"Argentina",away:"Áustria",date:"22/06",time:"14h",city:"Dallas"},
+    {id:44,home:"Jordânia",away:"Argélia",date:"23/06",time:"0h",city:"San Francisco/Bay Area"},
+    {id:69,home:"Argélia",away:"Áustria",date:"27/06",time:"23h",city:"Kansas City"},
+    {id:70,home:"Jordânia",away:"Argentina",date:"27/06",time:"23h",city:"Dallas"}
+  ]},
+  K:{teams:["Portugal","R. D. Congo","Uzbequistão","Colômbia"],matches:[
+    {id:23,home:"Portugal",away:"R. D. Congo",date:"17/06",time:"14h",city:"Houston"},
+    {id:24,home:"Uzbequistão",away:"Colômbia",date:"17/06",time:"23h",city:"Mexico City"},
+    {id:47,home:"Portugal",away:"Uzbequistão",date:"23/06",time:"14h",city:"Houston"},
+    {id:48,home:"Colômbia",away:"R. D. Congo",date:"23/06",time:"23h",city:"Guadalajara"},
+    {id:71,home:"Colômbia",away:"Portugal",date:"27/06",time:"20h30",city:"Miami"},
+    {id:72,home:"R. D. Congo",away:"Uzbequistão",date:"27/06",time:"20h30",city:"Atlanta"}
+  ]},
+  L:{teams:["Inglaterra","Croácia","Gana","Panamá"],matches:[
+    {id:22,home:"Inglaterra",away:"Croácia",date:"17/06",time:"17h",city:"Dallas"},
+    {id:21,home:"Gana",away:"Panamá",date:"17/06",time:"20h",city:"Toronto"},
+    {id:45,home:"Inglaterra",away:"Gana",date:"23/06",time:"17h",city:"Boston"},
+    {id:46,home:"Panamá",away:"Croácia",date:"23/06",time:"20h",city:"Toronto"},
+    {id:67,home:"Panamá",away:"Inglaterra",date:"27/06",time:"18h",city:"New York/New Jersey"},
+    {id:68,home:"Croácia",away:"Gana",date:"27/06",time:"18h",city:"Philadelphia"}
+  ]}
 };
 const ELIM_PHASES=[{phase:"Oitavas",label:"Dezesseis-avos de Final"},{phase:"Quartas",label:"Quartas de Final"},{phase:"Semi",label:"Semifinais"},{phase:"Final",label:"Final + 3º Lugar"}];
 const GROUP_MATCHES=[];
@@ -660,6 +744,9 @@ function renderEspeciais(){
   const esp=fbState.especiais||{};
   const artOk=esp.artilheiro&&pEsp.artilheiro&&esp.artilheiro.toLowerCase()===pEsp.artilheiro.toLowerCase();
   const camOk=esp.campeao&&pEsp.campeao&&esp.campeao.toLowerCase()===pEsp.campeao.toLowerCase();
+  // Prazo: 1h antes do 1o jogo — México × África do Sul, 11/06 18h BRT = 21h UTC
+  const ESPECIAIS_DEADLINE=new Date(Date.UTC(2026,5,11,18,0,0)); // 15h BRT (1h antes do 1o jogo às 16h BRT)
+  const espDeadlinePassed=!isAdmin&&Date.now()>=ESPECIAIS_DEADLINE.getTime();
   const viewPlayer=isAdmin?detailPlayer:currentUser;
   const playerSel=isAdmin?`<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
     <label style="color:var(--muted);font-size:13px;white-space:nowrap">Ver palpites de:</label>
@@ -670,20 +757,21 @@ function renderEspeciais(){
   </div>`:"";
   const vEsp=viewPlayer?fbState.players[viewPlayer]?.especiais||{}:{};
   return`
-    <div class="alert info">⭐ Cada palpite especial correto vale <strong>+5 pontos</strong>. Ficam bloqueados quando o admin registrar o resultado oficial.</div>
+    <div class="alert info">⭐ Cada palpite especial correto vale <strong>+5 pontos</strong>. Ficam bloqueados automaticamente <strong>1h antes do primeiro jogo</strong> (11/06 às 17h BRT) ou quando o admin registrar o resultado.</div>
+    ${espDeadlinePassed&&!esp.artilheiro?'<div class="alert warn">🔒 Prazo encerrado — palpites especiais não podem mais ser alterados.</div>':""}`
     ${playerSel}
     <div class="especial-card">
       <h3>🥇 Artilheiro da Copa</h3>
       <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Jogador com mais gols no torneio</p>
       <input id="esp-artilheiro" placeholder="Ex: Mbappé, Vini Jr, Haaland..."
         value="${isAdmin?vEsp.artilheiro||"":pEsp.artilheiro||""}"
-        ${!isAdmin&&esp.artilheiro?'disabled style="opacity:.6"':""}>
+        ${(!isAdmin&&esp.artilheiro)||espDeadlinePassed?'disabled style="opacity:.6"':""}>
       ${esp.artilheiro?`<div style="font-size:13px;color:var(--green);margin-top:4px">✅ Artilheiro oficial: <strong>${esp.artilheiro}</strong>${artOk&&!isAdmin?" · +5pts 🎉":""}</div>`:""}
     </div>
     <div class="especial-card">
       <h3>🏆 Seleção Campeã</h3>
       <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Quem vai levantar a taça em Nova York no dia 19/07?</p>
-      <select id="esp-campeao" ${!isAdmin&&esp.campeao?'disabled style="opacity:.6"':""}>
+      <select id="esp-campeao" ${(!isAdmin&&esp.campeao)||espDeadlinePassed?'disabled style="opacity:.6"':""}>
         <option value="">-- Selecione a seleção --</option>
         ${ALL_TEAMS.map(t=>`<option value="${t}" ${(isAdmin?vEsp.campeao:pEsp.campeao)===t?"selected":""}>${flag(t)} ${t}</option>`).join("")}
       </select>
@@ -895,7 +983,7 @@ function renderAdminElim(){
 }
 
 // ─── API IMPORT ───
-const TEAM_MAP={"Brazil":"Brasil","Morocco":"Marrocos","France":"França","Argentina":"Argentina","England":"Inglaterra","Portugal":"Portugal","Spain":"Espanha","Germany":"Alemanha","Netherlands":"Holanda","Belgium":"Bélgica","Croatia":"Croácia","Senegal":"Senegal","Japan":"Japão","South Korea":"Coreia do Sul","United States":"Estados Unidos","Mexico":"México","Canada":"Canadá","Ecuador":"Equador","Uruguay":"Uruguai","Colombia":"Colômbia","Türkiye":"Turquia","Switzerland":"Suíça","Qatar":"Catar","Ghana":"Gana","Tunisia":"Tunísia","Iran":"Irã","Saudi Arabia":"Arábia Saudita","South Africa":"África do Sul","Czech Republic":"República Tcheca","Czechia":"República Tcheca","Norway":"Noruega","Sweden":"Suécia","Austria":"Áustria","Algeria":"Argélia","Egypt":"Egito","New Zealand":"Nova Zelândia","Ivory Coast":"Costa do Marfim","DR Congo":"R. D. Congo","Panama":"Panamá","Paraguay":"Paraguai","Haiti":"Haiti","Scotland":"Escócia","Bosnia-Herzegovina":"Bósnia e Herzegovina","Jordan":"Jordânia","Iraq":"Iraque","Uzbekistan":"Uzbequistão","Curaçao":"Curaçao","Cape Verde":"Cabo Verde","Australia":"Austrália","Poland":"Polônia","Cameroon":"Camarões","Serbia":"Sérvia"};
+const TEAM_MAP={"Brazil":"Brasil","Morocco":"Marrocos","France":"França","Argentina":"Argentina","England":"Inglaterra","Portugal":"Portugal","Spain":"Espanha","Germany":"Alemanha","Netherlands":"Holanda","Belgium":"Bélgica","Croatia":"Croácia","Senegal":"Senegal","Japan":"Japão","South Korea":"Coreia do Sul","United States":"Estados Unidos","Mexico":"México","Canada":"Canadá","Ecuador":"Equador","Uruguay":"Uruguai","Colombia":"Colômbia","Türkiye":"Turquia","Switzerland":"Suíça","Qatar":"Catar","Ghana":"Gana","Tunisia":"Tunísia","Iran":"Irã","Saudi Arabia":"Arábia Saudita","South Africa":"África do Sul","Czech Republic":"República Tcheca","Czechia":"República Tcheca","Czech Rep.":"República Tcheca","Norway":"Noruega","Sweden":"Suécia","Austria":"Áustria","Algeria":"Argélia","Egypt":"Egito","New Zealand":"Nova Zelândia","Ivory Coast":"Costa do Marfim","DR Congo":"R. D. Congo","Panama":"Panamá","Paraguay":"Paraguai","Haiti":"Haiti","Scotland":"Escócia","Bosnia-Herzegovina":"Bósnia e Herzegovina","Jordan":"Jordânia","Iraq":"Iraque","Uzbekistan":"Uzbequistão","Curaçao":"Curaçao","Cape Verde":"Cabo Verde","Australia":"Austrália","Poland":"Polônia","Cameroon":"Camarões","Serbia":"Sérvia"};
 function toPort(name){return TEAM_MAP[name]||name;}
 
 async function apiImportResults(showStatus=true){
@@ -1095,36 +1183,36 @@ function bindAll(){
 
   // ─── AUTO-SAVE: inputs de palpite grupos ───
   document.querySelectorAll("input[data-mid]").forEach(inp=>{
-    inp.oninput=()=>{
+    inp.addEventListener("input",(e)=>{
       if(isAdmin)return;
+      // Ignora mudanças causadas por setinhas (type=number spin): só salva se digitou
+      if(e.inputType&&!e.inputType.startsWith("insert")&&e.inputType!=="deleteContentBackward")return;
       const mid=String(inp.dataset.mid),side=inp.dataset.side;
       if(!inputBuffer[mid])inputBuffer[mid]={};
       inputBuffer[mid][side]=inp.value;
-      // Se os dois campos preenchidos → salva
       const buf=inputBuffer[mid];
       if(buf.h!==undefined&&buf.h!==""&&buf.a!==undefined&&buf.a!==""){
-        // debounce 800ms
         clearTimeout(autoSaveTimers[mid]);
         const statusEl=document.getElementById(`status_${mid}`);
         if(statusEl){statusEl.textContent="⌛ Aguardando...";statusEl.className="save-status saving";}
         autoSaveTimers[mid]=setTimeout(()=>{
-          // verificar trava
           const m=GROUP_MATCHES.find(x=>String(x.id)===mid);
           if(m&&isLocked(matchTime(m.date,m.time),fbState.results[mid]?.h!==undefined)){
             if(statusEl){statusEl.textContent="🔒 Prazo encerrado";statusEl.className="save-status error";}
             return;
           }
           autoSavePalpite(mid,false);
-        },800);
+        },1500);
       }
-    };
+    });
   });
 
   // ─── AUTO-SAVE: inputs de palpite eliminatórias ───
   document.querySelectorAll("input[data-eid]").forEach(inp=>{
     if(inp.dataset.elimSide)return;
-    inp.oninput=()=>{
+    inp.addEventListener("input",(e)=>{
       if(isAdmin)return;
+      if(e.inputType&&!e.inputType.startsWith("insert")&&e.inputType!=="deleteContentBackward")return;
       const eid=inp.dataset.eid,side=inp.dataset.side;
       if(!inputBuffer[eid])inputBuffer[eid]={};
       inputBuffer[eid][side]=inp.value;
@@ -1133,9 +1221,9 @@ function bindAll(){
         clearTimeout(autoSaveTimers[eid]);
         const statusEl=document.getElementById(`status_${eid}`);
         if(statusEl){statusEl.textContent="⌛ Aguardando...";statusEl.className="save-status saving";}
-        autoSaveTimers[eid]=setTimeout(()=>autoSavePalpite(eid,true),800);
+        autoSaveTimers[eid]=setTimeout(()=>autoSavePalpite(eid,true),1500);
       }
-    };
+    });
   });
 
   // troca de username

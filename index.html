@@ -1183,10 +1183,8 @@ function bindAll(){
 
   // ─── AUTO-SAVE: inputs de palpite grupos ───
   document.querySelectorAll("input[data-mid]").forEach(inp=>{
-    inp.addEventListener("input",(e)=>{
+    inp.oninput=()=>{
       if(isAdmin)return;
-      // Ignora mudanças causadas por setinhas (type=number spin): só salva se digitou
-      if(e.inputType&&!e.inputType.startsWith("insert")&&e.inputType!=="deleteContentBackward")return;
       const mid=String(inp.dataset.mid),side=inp.dataset.side;
       if(!inputBuffer[mid])inputBuffer[mid]={};
       inputBuffer[mid][side]=inp.value;
@@ -1202,17 +1200,16 @@ function bindAll(){
             return;
           }
           autoSavePalpite(mid,false);
-        },1500);
+        },800);
       }
-    });
+    };
   });
 
   // ─── AUTO-SAVE: inputs de palpite eliminatórias ───
   document.querySelectorAll("input[data-eid]").forEach(inp=>{
     if(inp.dataset.elimSide)return;
-    inp.addEventListener("input",(e)=>{
+    inp.oninput=()=>{
       if(isAdmin)return;
-      if(e.inputType&&!e.inputType.startsWith("insert")&&e.inputType!=="deleteContentBackward")return;
       const eid=inp.dataset.eid,side=inp.dataset.side;
       if(!inputBuffer[eid])inputBuffer[eid]={};
       inputBuffer[eid][side]=inp.value;
@@ -1221,9 +1218,9 @@ function bindAll(){
         clearTimeout(autoSaveTimers[eid]);
         const statusEl=document.getElementById(`status_${eid}`);
         if(statusEl){statusEl.textContent="⌛ Aguardando...";statusEl.className="save-status saving";}
-        autoSaveTimers[eid]=setTimeout(()=>autoSavePalpite(eid,true),1500);
+        autoSaveTimers[eid]=setTimeout(()=>autoSavePalpite(eid,true),800);
       }
-    });
+    };
   });
 
   // troca de username

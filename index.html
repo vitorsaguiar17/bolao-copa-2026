@@ -528,14 +528,26 @@ function bindLogin(){
     const passwordHash=await hashPassword(password);
 
     if(playerExists){
-      // Jogador já cadastrado — verificar senha (hash)
-      if(playerExists.password&&playerExists.password!==passwordHash){
-        al.innerHTML='<div class="alert error">Senha incorreta</div>';return;
+      if(playerExists.password){
+        const isHashed=playerExists.password.length===64; // SHA-256 = 64 hex chars
+        if(isHashed){
+          // Senha já em hash — comparar normalmente
+          if(playerExists.password!==passwordHash){
+            al.innerHTML='<div class="alert error">Senha incorreta</div>';return;
+          }
+        } else {
+          // Senha em texto puro (cadastro antigo) — comparar e migrar para hash
+          if(playerExists.password!==password){
+            al.innerHTML='<div class="alert error">Senha incorreta</div>';return;
+          }
+          // Migra automaticamente para hash
+          await update(ref(db),{[`bolao/players/${name}/password`]:passwordHash});
+        }
       }
       // senha OK — logar
       currentUser=name;isAdmin=false;
       saveSession();
-      // Se ainda não tem senha salva (cadastro antigo), salva o hash agora
+      // Se ainda não tem senha salva (cadastro antigo sem senha), salva o hash agora
       if(!playerExists.password){
         await update(ref(db),{[`bolao/players/${name}/password`]:passwordHash});
       }
@@ -1062,6 +1074,22 @@ function exportRanking(){
   });
   const ws=XLSX.utils.aoa_to_sheet(d);ws['!cols']=[{wch:8},{wch:20},{wch:10},{wch:10},{wch:10},{wch:12},{wch:22},{wch:20},{wch:18},{wch:16}];
   XLSX.utils.book_append_sheet(wb,ws,"Ranking");
+
+  // Aba Especiais
+  const esp=fbState.especiais||{};
+  const espData=[["Jogador","Artilheiro Palpitado","Campeão Palpitado","Acertou Artilheiro","Acertou Campeão"]];
+  players.forEach(n=>{
+    const pl=fbState.players[n],pEsp=pl?.especiais||{};
+    const artOk=esp.artilheiro&&pEsp.artilheiro&&esp.artilheiro.toLowerCase()===pEsp.artilheiro.toLowerCase();
+    const camOk=esp.campeao&&pEsp.campeao&&esp.campeao.toLowerCase()===pEsp.campeao.toLowerCase();
+    espData.push([n,pEsp.artilheiro||"—",pEsp.campeao||"—",artOk?"✓":"✗",camOk?"✓":"✗"]);
+  });
+  espData.push(["","","","",""]);
+  espData.push(["Resultado oficial","Artilheiro: "+(esp.artilheiro||"Não definido"),"Campeão: "+(esp.campeao||"Não definido"),"",""]);
+  const wsEsp=XLSX.utils.aoa_to_sheet(espData);
+  wsEsp['!cols']=[{wch:20},{wch:22},{wch:20},{wch:18},{wch:16}];
+  XLSX.utils.book_append_sheet(wb,wsEsp,"Especiais");
+
   const rd=[["Jogo","Fase","Time Casa","Gols Casa","Gols Fora","Time Fora","Data","Horário","Cidade"]];
   GROUP_MATCHES.forEach(m=>{const res=fbState.results[m.id];rd.push([m.id,"Grupos",m.home,res?.h??"-",res?.a??"-",m.away,m.date,m.time,m.city]);});
   fbState.elimMatches.forEach(m=>{const res=fbState.results['e_'+m.id];rd.push(['e_'+m.id,m.phase,m.home,res?.h??"-",res?.a??"-",m.away,m.date||"-",m.time||"-",m.city||"-"]);});

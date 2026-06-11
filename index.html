@@ -1076,16 +1076,16 @@ function exportRanking(){
   XLSX.utils.book_append_sheet(wb,ws,"Ranking");
 
   // Aba Especiais
-  const esp=fbState.especiais||{};
+  const espOficial=fbState.especiais||{};
   const espData=[["Jogador","Artilheiro Palpitado","Campeão Palpitado","Acertou Artilheiro","Acertou Campeão"]];
   players.forEach(n=>{
     const pl=fbState.players[n],pEsp=pl?.especiais||{};
-    const artOk=esp.artilheiro&&pEsp.artilheiro&&esp.artilheiro.toLowerCase()===pEsp.artilheiro.toLowerCase();
-    const camOk=esp.campeao&&pEsp.campeao&&esp.campeao.toLowerCase()===pEsp.campeao.toLowerCase();
+    const artOk=espOficial.artilheiro&&pEsp.artilheiro&&espOficial.artilheiro.toLowerCase()===pEsp.artilheiro.toLowerCase();
+    const camOk=espOficial.campeao&&pEsp.campeao&&espOficial.campeao.toLowerCase()===pEsp.campeao.toLowerCase();
     espData.push([n,pEsp.artilheiro||"—",pEsp.campeao||"—",artOk?"✓":"✗",camOk?"✓":"✗"]);
   });
   espData.push(["","","","",""]);
-  espData.push(["Resultado oficial","Artilheiro: "+(esp.artilheiro||"Não definido"),"Campeão: "+(esp.campeao||"Não definido"),"",""]);
+  espData.push(["Resultado oficial","Artilheiro: "+(espOficial.artilheiro||"Não definido"),"Campeão: "+(espOficial.campeao||"Não definido"),"",""]);
   const wsEsp=XLSX.utils.aoa_to_sheet(espData);
   wsEsp['!cols']=[{wch:20},{wch:22},{wch:20},{wch:18},{wch:16}];
   XLSX.utils.book_append_sheet(wb,wsEsp,"Especiais");

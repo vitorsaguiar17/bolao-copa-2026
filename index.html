@@ -1149,13 +1149,21 @@ async function adminClickHandler(e){
   if(sg){
     e.stopPropagation();
     const updates={};
+    // Sempre salva todos os jogos visíveis no grupo — null apaga, valor registra
     GROUPS[sg].matches.forEach(m=>{
-      if(localResults[m.id]){
-        if(localResults[m.id].h!=="")updates[`bolao/results/${m.id}/h`]=localResults[m.id].h;
-        if(localResults[m.id].a!=="")updates[`bolao/results/${m.id}/a`]=localResults[m.id].a;
+      const inp_h=document.querySelector(`input[data-rid="${m.id}"][data-side="h"]`);
+      const inp_a=document.querySelector(`input[data-rid="${m.id}"][data-side="a"]`);
+      const h=inp_h?inp_h.value.trim():"";
+      const a=inp_a?inp_a.value.trim():"";
+      if(h===""&&a===""){
+        updates[`bolao/results/${m.id}`]=null; // apaga resultado
+      } else if(h!==""&&a!==""){
+        updates[`bolao/results/${m.id}/h`]=h;
+        updates[`bolao/results/${m.id}/a`]=a;
       }
     });
-    if(Object.keys(updates).length){await update(ref(db),updates);localResults={};}
+    await update(ref(db),updates);
+    localResults={};
     alert(`Grupo ${sg} salvo!`);return;
   }
 

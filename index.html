@@ -757,7 +757,7 @@ function renderEspeciais(){
   </div>`:"";
   const vEsp=viewPlayer?fbState.players[viewPlayer]?.especiais||{}:{};
   return`
-    <div class="alert info">⭐ Cada palpite especial correto vale <strong>+5 pontos</strong>. Ficam bloqueados automaticamente <strong>1h antes do primeiro jogo</strong> (11/06 às 17h BRT) ou quando o admin registrar o resultado.</div>
+    <div class="alert info">⭐ Cada palpite especial correto vale <strong>+5 pontos</strong>. Ficam bloqueados automaticamente <strong>1h antes do primeiro jogo</strong> (11/06 às 15h BRT) ou quando o admin registrar o resultado.</div>
     ${espDeadlinePassed&&!esp.artilheiro?'<div class="alert warn">🔒 Prazo encerrado — palpites especiais não podem mais ser alterados.</div>':""}
     ${playerSel}
     <div class="especial-card">

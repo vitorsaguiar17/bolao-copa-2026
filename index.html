@@ -138,6 +138,15 @@ const auth=getAuth(fbApp);
 // Autenticação anônima — garante conexão estável com Firebase
 signInAnonymously(auth).catch(e=>console.error("Auth error:",e));
 
+// ─── HASH DE SENHA ───
+async function hashPassword(password){
+  const encoder=new TextEncoder();
+  const data=encoder.encode(password+"bolao2026_salt");
+  const hashBuffer=await crypto.subtle.digest("SHA-256",data);
+  const hashArray=Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+
 // ─── API ───
 const API_KEY="8975e9c7e5be463dae65fbb4d658a42b";
 const FD_BASE="https://api.football-data.org/v4";
@@ -516,21 +525,19 @@ function bindLogin(){
     if(!password){al.innerHTML='<div class="alert error">Informe sua senha pessoal</div>';return;}
 
     const playerExists=fbState.players[name];
+    const passwordHash=await hashPassword(password);
 
     if(playerExists){
-      // Jogador já cadastrado — verificar senha
-      if(sec!==fbState.secret&&!playerExists.password){
-        // sem senha cadastrada ainda, aceita só o código
-      }
-      if(playerExists.password&&playerExists.password!==password){
+      // Jogador já cadastrado — verificar senha (hash)
+      if(playerExists.password&&playerExists.password!==passwordHash){
         al.innerHTML='<div class="alert error">Senha incorreta</div>';return;
       }
       // senha OK — logar
       currentUser=name;isAdmin=false;
       saveSession();
-      // Se ainda não tem senha salva, salva agora
+      // Se ainda não tem senha salva (cadastro antigo), salva o hash agora
       if(!playerExists.password){
-        await update(ref(db),{[`bolao/players/${name}/password`]:password});
+        await update(ref(db),{[`bolao/players/${name}/password`]:passwordHash});
       }
     } else {
       // Novo jogador — verificar código do bolão
@@ -539,11 +546,11 @@ function bindLogin(){
       currentUser=name;isAdmin=false;
       saveSession();
       try {
-        await set(ref(db,`bolao/players/${name}`),{palpites:{},elimPalpites:{},especiais:{},password});
-        fbState.players[name]={palpites:{},elimPalpites:{},especiais:{},password};
+        await set(ref(db,`bolao/players/${name}`),{palpites:{},elimPalpites:{},especiais:{},password:passwordHash});
+        fbState.players[name]={palpites:{},elimPalpites:{},especiais:{},password:passwordHash};
       } catch(e) {
         console.error("Erro ao cadastrar:",e);
-        fbState.players[name]={palpites:{},elimPalpites:{},especiais:{},password};
+        fbState.players[name]={palpites:{},elimPalpites:{},especiais:{},password:passwordHash};
       }
     }
     render();
@@ -1243,7 +1250,10 @@ function bindAll(){
     // Verifica senha antes de renomear
     const pwConfirm=document.getElementById("rename-password-confirm")?.value.trim()||"";
     const playerPw=fbState.players[currentUser]?.password||"";
-    if(playerPw&&pwConfirm!==playerPw){al.innerHTML='<div class="alert error">Senha incorreta</div>';return;}
+    if(playerPw){
+      const pwConfirmHash=await hashPassword(pwConfirm);
+      if(pwConfirmHash!==playerPw){al.innerHTML='<div class="alert error">Senha incorreta</div>';return;}
+    }
     // copia dados do usuário antigo para o novo e remove o antigo
     const oldData=fbState.players[currentUser]||{};
     const updates={};

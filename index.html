@@ -744,7 +744,8 @@ function renderPalpites(){
         html+="</div>";
       });
     }
-    return phTabs+viewToggle+warnBanner+autoSaveInfo+playerSel+html;
+    const adminSaveBtn=isAdmin&&detailPlayer?`<div class="flex-end" style="margin-top:12px"><button class="btn btn-sm btn-green" id="btn-admin-save-palpites">💾 Salvar palpites de ${detailPlayer}</button></div>`:"";
+    return phTabs+viewToggle+warnBanner+autoSaveInfo+playerSel+html+adminSaveBtn;
   } else {
     const elimMs=fbState.elimMatches.filter(m=>m.phase===currentPhase);
     if(!elimMs.length)return phTabs+playerSel+`<div class="empty"><div class="icon">⏳</div><p>Confrontos desta fase ainda não definidos. Serão importados automaticamente da API assim que a FIFA anunciar os jogos.</p></div>`;
@@ -779,7 +780,8 @@ function renderPalpites(){
         <div class="match-team right">${m.away} ${flag(m.away)}</div>
       </div>`;
     });
-    return phTabs+autoSaveInfo+playerSel+html;
+    const adminSaveBtnElim=isAdmin&&detailPlayer?`<div class="flex-end" style="margin-top:12px"><button class="btn btn-sm btn-green" id="btn-admin-save-palpites">💾 Salvar palpites de ${detailPlayer}</button></div>`:"";
+    return phTabs+autoSaveInfo+playerSel+html+adminSaveBtnElim;
   }
 }
 
@@ -1341,6 +1343,42 @@ function bindAll(){
     const cam=document.getElementById("esp-campeao")?.value||"";
     await update(ref(db),{[`bolao/players/${currentUser}/especiais/artilheiro`]:art,[`bolao/players/${currentUser}/especiais/campeao`]:cam});
     showAlert(null,"success","✅ Palpites especiais salvos!");render();
+  };
+
+  // Admin salvando palpites de grupo/elim de um jogador específico
+  const btnAdminSave=document.getElementById("btn-admin-save-palpites");
+  if(btnAdminSave)btnAdminSave.onclick=async()=>{
+    if(!detailPlayer){showAlert(null,"error","Selecione um jogador");return;}
+    const updates={};
+    // Salva todos os inputs de palpite visíveis na tela
+    document.querySelectorAll("input[data-mid]").forEach(inp=>{
+      const mid=inp.dataset.mid,side=inp.dataset.side;
+      if(!updates[`bolao/players/${detailPlayer}/palpites/${mid}`])
+        updates[`bolao/players/${detailPlayer}/palpites/${mid}`]={};
+      // Lê valor atual do input
+      const val=inp.value;
+      if(val!=="")updates[`bolao/players/${detailPlayer}/palpites/${mid}/${side}`]=val;
+    });
+    document.querySelectorAll("input[data-eid]").forEach(inp=>{
+      if(inp.dataset.elimSide)return;
+      const eid=inp.dataset.eid,side=inp.dataset.side;
+      if(inp.value!=="")updates[`bolao/players/${detailPlayer}/elimPalpites/${eid}/${side}`]=inp.value;
+    });
+    // Usa update flat para não sobrescrever campos não editados
+    const flatUpdates={};
+    document.querySelectorAll("input[data-mid]").forEach(inp=>{
+      if(inp.value!=="")flatUpdates[`bolao/players/${detailPlayer}/palpites/${inp.dataset.mid}/${inp.dataset.side}`]=inp.value;
+    });
+    document.querySelectorAll("input[data-eid]").forEach(inp=>{
+      if(inp.dataset.elimSide)return;
+      if(inp.value!=="")flatUpdates[`bolao/players/${detailPlayer}/elimPalpites/${inp.dataset.eid}/${inp.dataset.side}`]=inp.value;
+    });
+    if(Object.keys(flatUpdates).length){
+      await update(ref(db),flatUpdates);
+      showAlert(null,"success",`✅ Palpites de ${detailPlayer} salvos!`);
+    } else {
+      showAlert(null,"warn","Nenhum palpite para salvar");
+    }
   };
 
   // Admin salvando palpite especial de um jogador específico

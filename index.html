@@ -101,7 +101,8 @@ input:focus,select:focus{border-color:var(--blue)}
 .api-card{background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:14px;margin-bottom:10px}
 .api-card h4{color:var(--blue);font-size:14px;font-weight:600;margin-bottom:6px}
 @keyframes spin{to{transform:rotate(360deg)}}
-.view-toggle{display:flex;gap:4px;margin-bottom:14px}
+.view-toggle{display:flex;gap:4px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
+.filter-sep{width:1px;background:var(--border);margin:0 6px;height:24px;display:inline-block}
 .view-btn{padding:6px 16px;border-radius:20px;border:1.5px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-size:12px;font-family:'DM Sans',sans-serif;font-weight:600;transition:.15s}
 .view-btn.active{background:var(--blue);border-color:var(--blue);color:#fff}
 .view-btn:hover:not(.active){border-color:var(--blue);color:var(--blue)}
@@ -292,6 +293,7 @@ let currentUser=_sess.currentUser||null;
 let isAdmin=_sess.isAdmin||false;
 let currentTab="ranking",currentPhase="Grupos",detailPlayer=null;
 let palpiteView=localStorage.getItem("bolao26_view")||"grupo";
+let matchFilter=localStorage.getItem("bolao26_filter")||"todos"; // "todos" | "abertos" | "encerrados"
 let localResults={};
 let inputBuffer={};
 let autoSaveTimers={};
@@ -437,16 +439,19 @@ function lockBadge(mt,hasResult){
 async function autoSavePalpite(key,isElim){
   const buf=inputBuffer[key];
   if(!buf||buf.h===undefined||buf.h===""||buf.a===undefined||buf.a==="")return;
+  // Admin salva para o jogador selecionado; jogador salva para si mesmo
+  const targetPlayer=isAdmin?detailPlayer:currentUser;
+  if(!targetPlayer){console.warn("Nenhum jogador selecionado para salvar");return;}
   const statusEl=document.getElementById(`status_${key}`);
   if(statusEl){statusEl.textContent="💾 Salvando...";statusEl.className="save-status saving";}
   try{
     const updates={};
     if(isElim){
-      updates[`bolao/players/${currentUser}/elimPalpites/${key}/h`]=buf.h;
-      updates[`bolao/players/${currentUser}/elimPalpites/${key}/a`]=buf.a;
+      updates[`bolao/players/${targetPlayer}/elimPalpites/${key}/h`]=buf.h;
+      updates[`bolao/players/${targetPlayer}/elimPalpites/${key}/a`]=buf.a;
     } else {
-      updates[`bolao/players/${currentUser}/palpites/${key}/h`]=buf.h;
-      updates[`bolao/players/${currentUser}/palpites/${key}/a`]=buf.a;
+      updates[`bolao/players/${targetPlayer}/palpites/${key}/h`]=buf.h;
+      updates[`bolao/players/${targetPlayer}/palpites/${key}/a`]=buf.a;
     }
     await update(ref(db),updates);
     delete inputBuffer[key];
@@ -662,6 +667,10 @@ function renderPalpites(){
     const viewToggle=`<div class="view-toggle">
       <button class="view-btn ${palpiteView==="grupo"?"active":""}" data-view="grupo">📋 Por Grupo</button>
       <button class="view-btn ${palpiteView==="data"?"active":""}" data-view="data">📅 Por Data</button>
+      <span class="filter-sep"></span>
+      <button class="view-btn ${matchFilter==="todos"?"active":""}" data-filter="todos">Todos</button>
+      <button class="view-btn ${matchFilter==="abertos"?"active":""}" data-filter="abertos">🟢 A jogar</button>
+      <button class="view-btn ${matchFilter==="encerrados"?"active":""}" data-filter="encerrados">✅ Encerrados</button>
     </div>`;
 
     // Função auxiliar para renderizar uma linha de jogo
@@ -701,8 +710,16 @@ function renderPalpites(){
     let html="";
     if(palpiteView==="grupo"){
       Object.keys(GROUPS).forEach(g=>{
+        const filteredM=GROUPS[g].matches.filter(m=>{
+          const hasResult=fbState.results[m.id]?.h!==undefined;
+          const locked=isLocked(matchTime(m.date,m.time),hasResult);
+          if(matchFilter==="abertos")return!locked&&!hasResult;
+          if(matchFilter==="encerrados")return hasResult||(locked&&!hasResult);
+          return true;
+        });
+        if(!filteredM.length)return;
         html+=`<div class="match-group"><div class="group-label">Grupo ${g} <span style="font-size:13px;font-family:'DM Sans';font-weight:400;color:var(--muted)">${GROUPS[g].teams.map(t=>flag(t)).join(" ")}</span></div>`;
-        GROUPS[g].matches.forEach(m=>{ html+=mkRow({...m,group:g},viewPlayer); });
+        filteredM.forEach(m=>{ html+=mkRow({...m,group:g},viewPlayer); });
         html+="</div>";
       });
     } else {
@@ -714,8 +731,16 @@ function renderPalpites(){
       Object.entries(byDate).forEach(([date,matches])=>{
         const brt=new Date(matchTime(date,"12h").getTime()-3*3600000);
         const wd=weekdays[brt.getUTCDay()];
+        const filteredDate=matches.filter(m=>{
+          const hasResult=fbState.results[m.id]?.h!==undefined;
+          const locked=isLocked(matchTime(m.date,m.time),hasResult);
+          if(matchFilter==="abertos")return!locked&&!hasResult;
+          if(matchFilter==="encerrados")return hasResult||(locked&&!hasResult);
+          return true;
+        });
+        if(!filteredDate.length)return;
         html+=`<div class="date-group"><div class="date-label">📅 ${date} <span style="font-size:14px;font-family:'DM Sans';font-weight:400;color:var(--muted)">${wd}</span></div>`;
-        matches.forEach(m=>{ html+=mkRow(m,viewPlayer); });
+        filteredDate.forEach(m=>{ html+=mkRow(m,viewPlayer); });
         html+="</div>";
       });
     }
@@ -797,7 +822,8 @@ function renderEspeciais(){
       ${esp.campeao?`<div style="font-size:13px;color:var(--green);margin-top:4px">✅ Campeão: <strong>${flag(esp.campeao)} ${esp.campeao}</strong>${camOk&&!isAdmin?" · +5pts 🎉":""}</div>`:""}
     </div>
     ${!isAdmin?`<div class="flex-end"><button class="btn btn-sm btn-green" id="btn-save-esp">💾 Salvar Especiais</button></div>`:""}
-    ${isAdmin?`<div class="alert info" style="margin-top:12px">Registre os resultados em ⚙️ Admin.</div>`:""}`;
+    ${isAdmin&&detailPlayer?`<div class="flex-end"><button class="btn btn-sm btn-green" id="btn-save-esp-player">💾 Salvar palpite de ${detailPlayer}</button></div>`:""}
+    ${isAdmin&&!detailPlayer?`<div class="alert info" style="margin-top:12px">Selecione um jogador acima para editar os palpites especiais.</div>`:""}`;
 }
 
 function renderResultados(){
@@ -1220,7 +1246,11 @@ function bindAll(){
   };
   document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{currentTab=t.dataset.tab;render();});
   document.querySelectorAll(".phase-tab").forEach(t=>t.onclick=()=>{currentPhase=t.dataset.phase;render();});
-  document.querySelectorAll(".view-btn").forEach(b=>b.onclick=()=>{palpiteView=b.dataset.view;localStorage.setItem("bolao26_view",palpiteView);render();});
+  document.querySelectorAll(".view-btn").forEach(b=>b.onclick=()=>{
+    if(b.dataset.view){palpiteView=b.dataset.view;localStorage.setItem("bolao26_view",palpiteView);}
+    if(b.dataset.filter){matchFilter=b.dataset.filter;localStorage.setItem("bolao26_filter",matchFilter);}
+    render();
+  });
   const dps=document.getElementById("sel-detail-player");if(dps)dps.onchange=()=>{detailPlayer=dps.value||null;render();};
   const dpse=document.getElementById("sel-detail-player-esp");if(dpse)dpse.onchange=()=>{detailPlayer=dpse.value||null;render();};
 
@@ -1230,8 +1260,9 @@ function bindAll(){
       if(isAdmin)return;
       const mid=String(inp.dataset.mid),side=inp.dataset.side;
       if(!inputBuffer[mid]){
-        // Inicializa buffer com valores já salvos para que edição de 1 campo funcione
-        const pl=currentUser?fbState.players[currentUser]:null;
+        // Inicializa buffer com valores já salvos (usa jogador selecionado se admin)
+        const targetPl=isAdmin?detailPlayer:currentUser;
+        const pl=targetPl?fbState.players[targetPl]:null;
         const saved=pl?.palpites?.[mid];
         inputBuffer[mid]={h:saved?.h??'',a:saved?.a??''};
       }
@@ -1260,7 +1291,8 @@ function bindAll(){
       if(isAdmin)return;
       const eid=inp.dataset.eid,side=inp.dataset.side;
       if(!inputBuffer[eid]){
-        const pl=currentUser?fbState.players[currentUser]:null;
+        const targetPl=isAdmin?detailPlayer:currentUser;
+        const pl=targetPl?fbState.players[targetPl]:null;
         const saved=pl?.elimPalpites?.[eid];
         inputBuffer[eid]={h:saved?.h??'',a:saved?.a??''};
       }
@@ -1309,6 +1341,19 @@ function bindAll(){
     const cam=document.getElementById("esp-campeao")?.value||"";
     await update(ref(db),{[`bolao/players/${currentUser}/especiais/artilheiro`]:art,[`bolao/players/${currentUser}/especiais/campeao`]:cam});
     showAlert(null,"success","✅ Palpites especiais salvos!");render();
+  };
+
+  // Admin salvando palpite especial de um jogador específico
+  const bsePlayer=document.getElementById("btn-save-esp-player");
+  if(bsePlayer)bsePlayer.onclick=async()=>{
+    if(!detailPlayer){showAlert(null,"error","Selecione um jogador");return;}
+    const art=document.getElementById("esp-artilheiro")?.value.trim()||"";
+    const cam=document.getElementById("esp-campeao")?.value||"";
+    await update(ref(db),{
+      [`bolao/players/${detailPlayer}/especiais/artilheiro`]:art,
+      [`bolao/players/${detailPlayer}/especiais/campeao`]:cam
+    });
+    showAlert(null,"success",`✅ Palpites especiais de ${detailPlayer} salvos!`);render();
   };
 
   // admin: config

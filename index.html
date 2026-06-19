@@ -100,6 +100,7 @@ input:focus,select:focus{border-color:var(--blue)}
 .api-status-bar{background:var(--blue);color:rgba(255,255,255,.8);font-size:11px;padding:4px 12px;border-radius:20px;display:inline-flex;align-items:center;gap:6px}
 .api-card{background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:14px;margin-bottom:10px}
 .api-card h4{color:var(--blue);font-size:14px;font-weight:600;margin-bottom:6px}
+.evo-result-item:hover{background:var(--surface2)}
 @keyframes spin{to{transform:rotate(360deg)}}
 .view-toggle{display:flex;gap:4px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
 .filter-sep{width:1px;background:var(--border);margin:0 6px;height:24px;display:inline-block}
@@ -126,6 +127,7 @@ input:focus,select:focus{border-color:var(--blue)}
   <div id="root"><div style="text-align:center;padding:60px;color:var(--muted)"><div style="font-size:32px;animation:spin 1s linear infinite;display:inline-block">⚽</div><p style="margin-top:12px">Conectando...</p></div></div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
 import { getDatabase, ref, set, onValue, update } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-database.js";
@@ -421,6 +423,84 @@ function countPalpites(name){
   const p=fbState.players[name];if(!p)return 0;
   return Object.keys(p.palpites||{}).length+Object.keys(p.elimPalpites||{}).length;
 }
+
+// ─── HISTÓRICO DE EVOLUÇÃO E FORMA RECENTE ───
+// Retorna lista de todos os jogos com resultado, ordenados cronologicamente
+function getOrderedPlayedMatches(){
+  const all=[];
+  GROUP_MATCHES.forEach(m=>{
+    const res=fbState.results[m.id];
+    if(res?.h!==undefined){
+      all.push({id:m.id,isElim:false,mt:matchTime(m.date,m.time),mult:1,res});
+    }
+  });
+  fbState.elimMatches.forEach(m=>{
+    const eid='e_'+m.id;
+    const res=fbState.results[eid];
+    if(res?.h!==undefined&&m.date&&m.time){
+      all.push({id:eid,isElim:true,mt:matchTime(m.date,m.time),mult:2,res});
+    }
+  });
+  all.sort((a,b)=>a.mt-b.mt);
+  return all;
+}
+
+// Calcula pontos acumulados de cada jogador a cada jogo (para o gráfico de evolução)
+function computeEvolutionData(){
+  const playedMatches=getOrderedPlayedMatches();
+  const players=Object.keys(fbState.players);
+  const cumPts={};
+  players.forEach(n=>cumPts[n]=0);
+  const series={};
+  players.forEach(n=>series[n]=[]);
+
+  playedMatches.forEach(match=>{
+    players.forEach(n=>{
+      const p=fbState.players[n];
+      const pal=match.isElim?p.elimPalpites?.[match.id]:p.palpites?.[match.id];
+      const pts=calcPts(pal,match.res,match.mult);
+      cumPts[n]+=(pts||0);
+    });
+    // calcula ranking (posição) deste momento
+    const ranked=players.map(n=>({n,pts:cumPts[n]})).sort((a,b)=>b.pts-a.pts);
+    const posMap={};
+    ranked.forEach((r,i)=>posMap[r.n]=i+1);
+    players.forEach(n=>series[n].push({pos:posMap[n],pts:cumPts[n]}));
+  });
+
+  return {labels:playedMatches.map((_,i)=>`J${i+1}`),series,totalGames:playedMatches.length};
+}
+
+// Forma recente: últimos 5 jogos com resultado, na ordem cronológica
+// Retorna array de {color} onde color = green|yellow|gray|red
+function getRecentForm(name,limit=5){
+  const p=fbState.players[name];if(!p)return[];
+  const playedMatches=getOrderedPlayedMatches();
+  const form=[];
+  playedMatches.forEach(match=>{
+    const pal=match.isElim?p.elimPalpites?.[match.id]:p.palpites?.[match.id];
+    const res=match.res;
+    if(!pal||pal.h===undefined||pal.h===""){
+      form.push("none"); // não palpitou
+      return;
+    }
+    const ph=parseInt(pal.h),pa=parseInt(pal.a),rh=parseInt(res.h),ra=parseInt(res.a);
+    const exact=ph===rh&&pa===ra;
+    const winnerOk=(ph>pa?1:ph<pa?-1:0)===(rh>ra?1:rh<ra?-1:0);
+    const saldoOk=(ph-pa)===(rh-ra);
+    if(exact)form.push("green");
+    else if(winnerOk&&saldoOk)form.push("yellow");
+    else if(winnerOk)form.push("gray");
+    else form.push("red");
+  });
+  return form.slice(-limit);
+}
+
+function formDot(color){
+  const colors={green:"#22c55e",yellow:"#eab308",gray:"#9ca3af",red:"#ef4444",none:"#e5e7eb"};
+  const titles={green:"Placar exato",yellow:"Vencedor + saldo",gray:"Só vencedor",red:"Errou",none:"Sem palpite"};
+  return`<span title="${titles[color]}" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${colors[color]};margin-right:2px"></span>`;
+}
 function isLocked(mt,hasResult){
   if(hasResult)return true;
   if(isAdmin)return false;
@@ -471,6 +551,7 @@ function render(){
   root.innerHTML=`
     ${renderTopBar()}${renderTabs()}
     <div class="section ${currentTab==="ranking"?"active":""}">${renderRanking()}</div>
+    <div class="section ${currentTab==="evolucao"?"active":""}">${renderEvolucao()}</div>
     <div class="section ${currentTab==="palpites"?"active":""}">${renderPalpites()}</div>
     <div class="section ${currentTab==="especiais"?"active":""}">${renderEspeciais()}</div>
     <div class="section ${currentTab==="resultados"?"active":""}">${renderResultados()}</div>
@@ -609,7 +690,7 @@ function renderTopBar(){
   </div>`;
 }
 function renderTabs(){
-  const tabs=[{k:"ranking",label:"🏆 Ranking"},{k:"palpites",label:"✏️ Palpites"},{k:"especiais",label:"⭐ Especiais"},{k:"resultados",label:"📊 Resultados"},{k:"regras",label:"📋 Regras"},...(isAdmin?[{k:"admin",label:"⚙️ Admin"}]:[])];
+  const tabs=[{k:"ranking",label:"🏆 Ranking"},{k:"evolucao",label:"📈 Evolução"},{k:"palpites",label:"✏️ Palpites"},{k:"especiais",label:"⭐ Especiais"},{k:"resultados",label:"📊 Resultados"},{k:"regras",label:"📋 Regras"},...(isAdmin?[{k:"admin",label:"⚙️ Admin"}]:[])];
   return`<div class="tabs">${tabs.map(t=>`<button class="tab ${currentTab===t.k?"active":""}" data-tab="${t.k}">${t.label}</button>`).join("")}</div>`;
 }
 
@@ -633,15 +714,132 @@ function renderRanking(){
     </div>
     ${sorted.map((p,i)=>{
       const isMe=p.n===currentUser;
+      const form=getRecentForm(p.n,5);
+      const formHtml=form.length?`<span style="margin-left:6px">${form.map(formDot).join("")}</span>`:"";
       return`<div class="rank-row ${isMe?"me":""}">
         <div class="rank-pos ${posClass(i)}">${i<3?medals[i]:i+1}</div>
         <div style="flex:1">
-          <div class="rank-name">${p.n}${isMe?' <span style="font-size:11px;color:var(--green)">(você)</span>':""}</div>
+          <div class="rank-name">${p.n}${isMe?' <span style="font-size:11px;color:var(--green)">(você)</span>':""}${formHtml}</div>
           <div class="rank-sub">${p.st.acertos} acertos · ${p.st.exatos} exatos · ${countPalpites(p.n)} palpites</div>
         </div>
         <div class="rank-pts">${p.pts}<span style="font-size:12px;color:var(--muted);font-family:'DM Sans'"> pts</span></div>
       </div>`;
     }).join("")}`;
+}
+
+let evoChartInstance=null;
+let evoHighlighted=null;
+
+function setupEvolutionChart(){
+  const canvas=document.getElementById("evoChart");
+  if(!canvas||typeof Chart==="undefined")return;
+  const evo=computeEvolutionData();
+  if(evo.totalGames===0)return;
+
+  const players=Object.keys(fbState.players);
+  const palette=["#94a3b8","#a78bfa","#fb923c","#34d399","#f472b6","#60a5fa","#fbbf24","#a3e635"];
+
+  const datasets=players.map((n,i)=>{
+    const isHighlighted=evoHighlighted===n;
+    const isMe=n===currentUser;
+    const baseColor=isMe?"#009c3b":palette[i%palette.length];
+    return{
+      label:n,
+      data:evo.series[n].map(s=>s.pos),
+      borderColor:isHighlighted||isMe?baseColor:"rgba(150,150,150,0.25)",
+      backgroundColor:"transparent",
+      borderWidth:isHighlighted||isMe?3:1,
+      pointRadius:isHighlighted||isMe?3:0,
+      pointHoverRadius:5,
+      tension:0.2,
+      order:isHighlighted||isMe?0:1
+    };
+  });
+
+  if(evoChartInstance)evoChartInstance.destroy();
+  evoChartInstance=new Chart(canvas,{
+    type:"line",
+    data:{labels:evo.labels,datasets},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      scales:{
+        y:{reverse:true,min:1,max:players.length,ticks:{stepSize:1,font:{size:11}},title:{display:true,text:"Posição no ranking"}},
+        x:{ticks:{font:{size:10},maxRotation:0,autoSkip:true}}
+      },
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          callbacks:{
+            title:(items)=>items[0]?.label||"",
+            label:(item)=>`${item.dataset.label}: ${item.parsed.y}º lugar`
+          }
+        }
+      },
+      interaction:{mode:"nearest",intersect:false}
+    }
+  });
+
+  // Busca por nome
+  const searchInput=document.getElementById("evo-search");
+  const resultsDiv=document.getElementById("evo-search-results");
+  const badgeDiv=document.getElementById("evo-highlight-badge");
+
+  function updateBadge(){
+    if(!badgeDiv)return;
+    if(evoHighlighted){
+      badgeDiv.style.display="block";
+      badgeDiv.innerHTML=`<span class="alert info" style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px">📍 Destacando: <strong>${evoHighlighted}</strong> <button id="evo-clear" style="border:none;background:transparent;cursor:pointer;color:var(--blue);font-weight:600">✕ limpar</button></span>`;
+      const clearBtn=document.getElementById("evo-clear");
+      if(clearBtn)clearBtn.onclick=()=>{evoHighlighted=null;updateBadge();setupEvolutionChart();};
+    } else {
+      badgeDiv.style.display="none";
+    }
+  }
+  updateBadge();
+
+  if(searchInput){
+    searchInput.oninput=()=>{
+      const q=searchInput.value.trim().toLowerCase();
+      if(!q){resultsDiv.style.display="none";return;}
+      const matches=players.filter(n=>n.toLowerCase().includes(q)).slice(0,8);
+      if(!matches.length){resultsDiv.style.display="none";return;}
+      resultsDiv.style.display="block";
+      resultsDiv.innerHTML=matches.map(n=>`<div class="evo-result-item" data-name="${n}" style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border)">${n}</div>`).join("");
+      resultsDiv.querySelectorAll(".evo-result-item").forEach(el=>{
+        el.onclick=()=>{
+          evoHighlighted=el.dataset.name;
+          searchInput.value="";
+          resultsDiv.style.display="none";
+          updateBadge();
+          setupEvolutionChart();
+        };
+        el.onmouseenter=()=>el.style.background="var(--surface2)";
+        el.onmouseleave=()=>el.style.background="transparent";
+      });
+    };
+  }
+}
+
+function renderEvolucao(){
+  const players=Object.keys(fbState.players);
+  if(!players.length)return`<div class="empty"><div class="icon">👥</div><p>Nenhum jogador ainda</p></div>`;
+  const evo=computeEvolutionData();
+  if(evo.totalGames===0){
+    return`<div class="empty"><div class="icon">📈</div><p>O gráfico de evolução aparece aqui assim que o primeiro jogo for apurado.</p></div>`;
+  }
+  return`
+    <div class="card" style="margin-bottom:10px">
+      <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Posição de cada participante ao longo dos jogos apurados. Busque um nome para destacar.</p>
+      <input id="evo-search" placeholder="Buscar participante pelo nome..." style="margin-bottom:8px">
+      <div id="evo-search-results" style="display:none;max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:8px"></div>
+      <div id="evo-highlight-badge" style="display:none;margin-bottom:8px"></div>
+    </div>
+    <div class="card">
+      <div style="position:relative;height:420px">
+        <canvas id="evoChart" role="img" aria-label="Gráfico de evolução da posição de cada participante no ranking ao longo dos jogos apurados"></canvas>
+      </div>
+    </div>
+  `;
 }
 
 function renderPalpites(){
@@ -1253,6 +1451,12 @@ function bindAll(){
     if(b.dataset.filter){matchFilter=b.dataset.filter;localStorage.setItem("bolao26_filter",matchFilter);}
     render();
   });
+
+  // ─── Gráfico de evolução (aba Evolução) ───
+  if(currentTab==="evolucao"){
+    setupEvolutionChart();
+  }
+
   const dps=document.getElementById("sel-detail-player");if(dps)dps.onchange=()=>{detailPlayer=dps.value||null;render();};
   const dpse=document.getElementById("sel-detail-player-esp");if(dpse)dpse.onchange=()=>{detailPlayer=dpse.value||null;render();};
 

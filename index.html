@@ -728,7 +728,10 @@ function renderRanking(){
 }
 
 let evoChartInstance=null;
-let evoHighlighted=null;
+let evoHighlighted=new Set(); // múltiplos participantes destacados
+let evoAllHighlighted=false;
+
+const EVO_PALETTE=["#a78bfa","#fb923c","#34d399","#f472b6","#60a5fa","#fbbf24","#a3e635","#f87171","#22d3ee","#c084fc","#fb7185","#4ade80"];
 
 function setupEvolutionChart(){
   const canvas=document.getElementById("evoChart");
@@ -737,22 +740,25 @@ function setupEvolutionChart(){
   if(evo.totalGames===0)return;
 
   const players=Object.keys(fbState.players);
-  const palette=["#94a3b8","#a78bfa","#fb923c","#34d399","#f472b6","#60a5fa","#fbbf24","#a3e635"];
+
+  // jogador logado sempre conta como destacado implicitamente, mas não trava o toggle
+  const isActiveHighlight=(n)=>evoAllHighlighted||evoHighlighted.has(n)||n===currentUser;
 
   const datasets=players.map((n,i)=>{
-    const isHighlighted=evoHighlighted===n;
+    const active=isActiveHighlight(n);
     const isMe=n===currentUser;
-    const baseColor=isMe?"#009c3b":palette[i%palette.length];
+    const baseColor=isMe?"#009c3b":EVO_PALETTE[i%EVO_PALETTE.length];
     return{
       label:n,
       data:evo.series[n].map(s=>s.pos),
-      borderColor:isHighlighted||isMe?baseColor:"rgba(150,150,150,0.25)",
+      borderColor:active?baseColor:"rgba(150,150,150,0.2)",
       backgroundColor:"transparent",
-      borderWidth:isHighlighted||isMe?3:1,
-      pointRadius:isHighlighted||isMe?3:0,
+      borderWidth:active?3:1,
+      pointRadius:active?3:0,
       pointHoverRadius:5,
       tension:0.2,
-      order:isHighlighted||isMe?0:1
+      order:active?0:1,
+      _playerName:n
     };
   });
 
@@ -775,27 +781,24 @@ function setupEvolutionChart(){
           }
         }
       },
-      interaction:{mode:"nearest",intersect:false}
+      interaction:{mode:"nearest",intersect:false},
+      onClick:(evt,elements,chart)=>{
+        // Clique numa linha alterna o destaque daquele participante
+        const points=chart.getElementsAtEventForMode(evt,"nearest",{intersect:false},true);
+        if(points.length){
+          const idx=points[0].datasetIndex;
+          const name=chart.data.datasets[idx]._playerName;
+          toggleEvoHighlight(name);
+        }
+      }
     }
   });
+
+  renderEvoBadges();
 
   // Busca por nome
   const searchInput=document.getElementById("evo-search");
   const resultsDiv=document.getElementById("evo-search-results");
-  const badgeDiv=document.getElementById("evo-highlight-badge");
-
-  function updateBadge(){
-    if(!badgeDiv)return;
-    if(evoHighlighted){
-      badgeDiv.style.display="block";
-      badgeDiv.innerHTML=`<span class="alert info" style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px">📍 Destacando: <strong>${evoHighlighted}</strong> <button id="evo-clear" style="border:none;background:transparent;cursor:pointer;color:var(--blue);font-weight:600">✕ limpar</button></span>`;
-      const clearBtn=document.getElementById("evo-clear");
-      if(clearBtn)clearBtn.onclick=()=>{evoHighlighted=null;updateBadge();setupEvolutionChart();};
-    } else {
-      badgeDiv.style.display="none";
-    }
-  }
-  updateBadge();
 
   if(searchInput){
     searchInput.oninput=()=>{
@@ -804,20 +807,62 @@ function setupEvolutionChart(){
       const matches=players.filter(n=>n.toLowerCase().includes(q)).slice(0,8);
       if(!matches.length){resultsDiv.style.display="none";return;}
       resultsDiv.style.display="block";
-      resultsDiv.innerHTML=matches.map(n=>`<div class="evo-result-item" data-name="${n}" style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border)">${n}</div>`).join("");
+      resultsDiv.innerHTML=matches.map(n=>{
+        const checked=evoHighlighted.has(n)?"✓ ":"";
+        return`<div class="evo-result-item" data-name="${n}" style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border)">${checked}${n}</div>`;
+      }).join("");
       resultsDiv.querySelectorAll(".evo-result-item").forEach(el=>{
         el.onclick=()=>{
-          evoHighlighted=el.dataset.name;
+          toggleEvoHighlight(el.dataset.name);
           searchInput.value="";
           resultsDiv.style.display="none";
-          updateBadge();
-          setupEvolutionChart();
         };
-        el.onmouseenter=()=>el.style.background="var(--surface2)";
-        el.onmouseleave=()=>el.style.background="transparent";
       });
     };
   }
+
+  const btnAll=document.getElementById("evo-toggle-all");
+  if(btnAll)btnAll.onclick=()=>{
+    evoAllHighlighted=!evoAllHighlighted;
+    if(evoAllHighlighted)evoHighlighted.clear();
+    setupEvolutionChart();
+  };
+  const btnClear=document.getElementById("evo-clear-all");
+  if(btnClear)btnClear.onclick=()=>{
+    evoHighlighted.clear();
+    evoAllHighlighted=false;
+    setupEvolutionChart();
+  };
+}
+
+function toggleEvoHighlight(name){
+  if(name===currentUser)return; // jogador logado já está sempre destacado
+  evoAllHighlighted=false;
+  if(evoHighlighted.has(name))evoHighlighted.delete(name);
+  else evoHighlighted.add(name);
+  setupEvolutionChart();
+}
+
+function renderEvoBadges(){
+  const badgeDiv=document.getElementById("evo-highlight-badge");
+  if(!badgeDiv)return;
+  const names=Array.from(evoHighlighted);
+  if(evoAllHighlighted){
+    badgeDiv.style.display="block";
+    badgeDiv.innerHTML=`<span class="alert info" style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px">📍 Destacando todos os participantes</span>`;
+    return;
+  }
+  if(!names.length){
+    badgeDiv.style.display="none";
+    return;
+  }
+  badgeDiv.style.display="block";
+  badgeDiv.innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:6px">`+
+    names.map(n=>`<span class="alert info" style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;margin:0">${n} <button data-remove-evo="${n}" style="border:none;background:transparent;cursor:pointer;color:var(--blue);font-weight:600;padding:0">✕</button></span>`).join("")+
+    `</div>`;
+  badgeDiv.querySelectorAll("[data-remove-evo]").forEach(btn=>{
+    btn.onclick=()=>{toggleEvoHighlight(btn.dataset.removeEvo);};
+  });
 }
 
 function renderEvolucao(){
@@ -829,8 +874,12 @@ function renderEvolucao(){
   }
   return`
     <div class="card" style="margin-bottom:10px">
-      <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Posição de cada participante ao longo dos jogos apurados. Busque um nome para destacar.</p>
-      <input id="evo-search" placeholder="Buscar participante pelo nome..." style="margin-bottom:8px">
+      <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Posição de cada participante ao longo dos jogos apurados. Clique numa linha, busque um nome, ou destaque todos.</p>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <input id="evo-search" placeholder="Buscar participante pelo nome..." style="margin-bottom:0;flex:1">
+        <button class="btn btn-sm btn-outline" id="evo-toggle-all" style="white-space:nowrap">${evoAllHighlighted?"Ver normal":"🎨 Destacar todos"}</button>
+        <button class="btn btn-sm btn-outline" id="evo-clear-all" style="white-space:nowrap">Limpar</button>
+      </div>
       <div id="evo-search-results" style="display:none;max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:8px"></div>
       <div id="evo-highlight-badge" style="display:none;margin-bottom:8px"></div>
     </div>

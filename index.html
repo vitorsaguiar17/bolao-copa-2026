@@ -14,7 +14,8 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 .header::before{content:'';position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,#009c3b 33%,#ffdf00 33%,#ffdf00 66%,#009c3b 66%)}
 .header h1{font-family:'Bebas Neue',sans-serif;font-size:38px;color:#ffdf00;line-height:1;letter-spacing:2px}
 .header p{color:rgba(255,255,255,.6);font-size:12px;margin-top:2px}
-.tabs{display:flex;gap:3px;background:var(--blue);border-radius:12px;padding:4px;margin-bottom:16px;flex-wrap:wrap}
+.tabs-wrap{background:var(--blue);border-radius:12px;padding:4px;margin-bottom:16px}
+.tabs{display:flex;gap:3px;flex-wrap:wrap}
 .tab{flex:1;padding:9px 4px;border:none;background:transparent;color:rgba(255,255,255,.5);cursor:pointer;border-radius:9px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;transition:.15s;white-space:nowrap;min-width:60px}
 .tab.active{background:var(--gold);color:var(--blue)}
 .tab:hover:not(.active){background:rgba(255,255,255,.1);color:#fff}
@@ -691,8 +692,13 @@ function renderTopBar(){
   </div>`;
 }
 function renderTabs(){
-  const tabs=[{k:"ranking",label:"🏆 Ranking"},{k:"evolucao",label:"📈 Evolução"},{k:"palpites",label:"✏️ Palpites"},{k:"palpitesencerrados",label:"🔓 Palpites Encerrados"},{k:"especiais",label:"⭐ Especiais"},{k:"resultados",label:"📊 Resultados"},{k:"regras",label:"📋 Regras"},...(isAdmin?[{k:"admin",label:"⚙️ Admin"}]:[])];
-  return`<div class="tabs">${tabs.map(t=>`<button class="tab ${currentTab===t.k?"active":""}" data-tab="${t.k}">${t.label}</button>`).join("")}</div>`;
+  const row1=[{k:"ranking",label:"🏆 Ranking"},{k:"evolucao",label:"📈 Evolução"},{k:"palpites",label:"✏️ Palpites"},{k:"palpitesencerrados",label:"🔓 Encerrados"}];
+  const row2=[{k:"especiais",label:"⭐ Especiais"},{k:"resultados",label:"📊 Resultados"},{k:"regras",label:"📋 Regras"},...(isAdmin?[{k:"admin",label:"⚙️ Admin"}]:[])];
+  const renderRow=(tabs)=>tabs.map(t=>`<button class="tab ${currentTab===t.k?"active":""}" data-tab="${t.k}">${t.label}</button>`).join("");
+  return`<div class="tabs-wrap">
+    <div class="tabs">${renderRow(row1)}</div>
+    <div class="tabs" style="margin-top:4px">${renderRow(row2)}</div>
+  </div>`;
 }
 
 function renderRanking(){
@@ -866,52 +872,106 @@ function renderEvoBadges(){
   });
 }
 
+// ─── PALPITES ENCERRADOS ───
+let peSelectedId=null; // id do jogo atualmente exibido (string, prefixado com 'e_' se elim)
+let peFilterGroup="todos";
+let peFilterDate="todos";
+let peSearchTeam="";
+
+function getClosedMatchesList(){
+  const now=Date.now();
+  const closedGroup=GROUP_MATCHES.filter(m=>now>=lockTime(matchTime(m.date,m.time)).getTime())
+    .map(m=>({...m,isElim:false,rid:String(m.id),mt:matchTime(m.date,m.time)}));
+  const closedElim=fbState.elimMatches.filter(m=>{
+    if(!m.date||!m.time)return false;
+    return now>=lockTime(matchTime(m.date,m.time)).getTime();
+  }).map(m=>({...m,isElim:true,rid:'e_'+m.id,mt:matchTime(m.date,m.time)}));
+  return [...closedGroup,...closedElim].sort((a,b)=>b.mt-a.mt); // mais recente primeiro
+}
+
 function renderPalpitesEncerrados(){
   const players=Object.keys(fbState.players);
   if(!players.length)return`<div class="empty"><div class="icon">👥</div><p>Nenhum jogador ainda</p></div>`;
 
-  // Jogos cujo PRAZO de palpite já passou (lockTime <= agora), com ou sem resultado ainda
-  const now=Date.now();
-  const closedGroup=GROUP_MATCHES.filter(m=>{
-    const mt=matchTime(m.date,m.time);
-    return now>=lockTime(mt).getTime();
-  });
-  const closedElim=fbState.elimMatches.filter(m=>{
-    if(!m.date||!m.time)return false;
-    const mt=matchTime(m.date,m.time);
-    return now>=lockTime(mt).getTime();
-  });
-
-  if(!closedGroup.length&&!closedElim.length){
+  const allClosed=getClosedMatchesList();
+  if(!allClosed.length){
     return`<div class="empty"><div class="icon">🔒</div><p>Nenhum jogo com prazo de palpite encerrado ainda. Os palpites de cada jogo aparecem aqui automaticamente 1h antes do início — mantendo a surpresa até lá.</p></div>`;
   }
 
-  // Ordena por horário do jogo, mais recente primeiro
-  const allClosed=[
-    ...closedGroup.map(m=>({...m,isElim:false,mt:matchTime(m.date,m.time)})),
-    ...closedElim.map(m=>({...m,isElim:true,mt:matchTime(m.date,m.time)}))
-  ].sort((a,b)=>b.mt-a.mt);
+  // Aplica filtros para a LISTA de seleção (não afeta o jogo já exibido)
+  let filtered=allClosed;
+  if(peFilterGroup!=="todos")filtered=filtered.filter(m=>!m.isElim&&m.group===peFilterGroup||m.isElim&&m.phase===peFilterGroup);
+  if(peFilterDate!=="todos")filtered=filtered.filter(m=>m.date===peFilterDate);
+  if(peSearchTeam.trim()){
+    const q=peSearchTeam.trim().toLowerCase();
+    filtered=filtered.filter(m=>m.home.toLowerCase().includes(q)||m.away.toLowerCase().includes(q));
+  }
 
-  let html=`<div class="alert info">🔓 Jogos exibidos aqui têm o prazo de palpite encerrado (1h antes do início). Jogos ainda abertos para palpite nunca aparecem nesta aba.</div>`;
+  // Se nenhum jogo selecionado ainda, usa o mais recente da lista completa (não filtrada)
+  if(!peSelectedId||!allClosed.find(m=>m.rid===peSelectedId)){
+    peSelectedId=allClosed[0].rid;
+  }
+  const current=allClosed.find(m=>m.rid===peSelectedId)||allClosed[0];
 
-  allClosed.forEach(m=>{
-    const rid=m.isElim?'e_'+m.id:m.id;
-    const res=fbState.results[rid];
-    const mult=m.isElim?2:1;
+  // Opções de filtro disponíveis
+  const groupOptions=Array.from(new Set(allClosed.filter(m=>!m.isElim).map(m=>m.group))).sort();
+  const phaseOptions=Array.from(new Set(allClosed.filter(m=>m.isElim).map(m=>m.phase)));
+  const dateOptions=Array.from(new Set(allClosed.map(m=>m.date))).sort((a,b)=>{
+    const[da,ma]=a.split("/").map(Number),[db,mb]=b.split("/").map(Number);
+    return ma-mb||da-db;
+  });
 
-    const rows=players.map(n=>{
-      const p=fbState.players[n];
-      const realPal=m.isElim?p.elimPalpites?.[rid]:p.palpites?.[m.id];
-      const palStr=realPal?.h!==undefined?`${realPal.h} × ${realPal.a}`:"—";
-      const pts=res?.h!==undefined?calcPts(realPal,res,mult):null;
-      return{n,palStr,pts};
-    }).sort((a,b)=>a.n.localeCompare(b.n));
+  // Navegação anterior/próximo dentro da lista completa ordenada
+  const idxInAll=allClosed.findIndex(m=>m.rid===current.rid);
+  const prevMatch=allClosed[idxInAll+1]; // mais antigo
+  const nextMatch=allClosed[idxInAll-1]; // mais recente
 
-    html+=`<div class="card" style="margin-bottom:14px">
+  const res=fbState.results[current.rid];
+  const mult=current.isElim?2:1;
+  const rows=players.map(n=>{
+    const p=fbState.players[n];
+    const realPal=current.isElim?p.elimPalpites?.[current.rid]:p.palpites?.[current.id];
+    const palStr=realPal?.h!==undefined?`${realPal.h} × ${realPal.a}`:"—";
+    const pts=res?.h!==undefined?calcPts(realPal,res,mult):null;
+    return{n,palStr,pts};
+  }).sort((a,b)=>a.n.localeCompare(b.n));
+
+  return`
+    <div class="alert info">🔓 Jogos aqui têm o prazo de palpite encerrado (1h antes do início). Por padrão mostra o mais recente — use os filtros para consultar outros.</div>
+
+    <div class="card" style="margin-bottom:12px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <select id="pe-filter-group" style="margin:0;flex:1;min-width:120px">
+          <option value="todos">Todos os grupos/fases</option>
+          ${groupOptions.map(g=>`<option value="${g}" ${peFilterGroup===g?"selected":""}>Grupo ${g}</option>`).join("")}
+          ${phaseOptions.map(p=>`<option value="${p}" ${peFilterGroup===p?"selected":""}>${p}</option>`).join("")}
+        </select>
+        <select id="pe-filter-date" style="margin:0;flex:1;min-width:110px">
+          <option value="todos">Todas as datas</option>
+          ${dateOptions.map(d=>`<option value="${d}" ${peFilterDate===d?"selected":""}>${d}</option>`).join("")}
+        </select>
+      </div>
+      <input id="pe-search-team" placeholder="Buscar por seleção..." value="${peSearchTeam}" style="margin-bottom:8px">
+      <div id="pe-match-list" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px">
+        ${filtered.length?filtered.map(m=>{
+          const isActive=m.rid===current.rid;
+          return`<div class="pe-list-item" data-rid="${m.rid}" style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);${isActive?'background:var(--surface2);font-weight:600':''}">
+            ${flag(m.home)} ${m.home} × ${m.away} ${flag(m.away)} <span style="color:var(--muted);font-size:11px">· ${m.date} · ${m.isElim?m.phase:'Grupo '+m.group}</span>
+          </div>`;
+        }).join(""):'<div style="padding:12px;color:var(--muted);font-size:13px">Nenhum jogo encontrado com esse filtro</div>'}
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <button class="btn btn-sm btn-outline" id="pe-prev" ${!prevMatch?"disabled style='opacity:.4'":""}>← Anterior</button>
+        <span style="font-size:11px;color:var(--muted)">${idxInAll+1} de ${allClosed.length}</span>
+        <button class="btn btn-sm btn-outline" id="pe-next" ${!nextMatch?"disabled style='opacity:.4'":""}>Próximo →</button>
+      </div>
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;flex-wrap:wrap;gap:6px">
         <div>
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--blue)">${flag(m.home)} ${m.home} × ${m.away} ${flag(m.away)}</div>
-          <div style="font-size:11px;color:var(--muted)">${m.isElim?m.phase:'Grupo '+m.group} · ${m.time||"?"} BRT · ${m.date}${m.isElim?' · ×'+mult+' pts':''}</div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--blue)">${flag(current.home)} ${current.home} × ${current.away} ${flag(current.away)}</div>
+          <div style="font-size:11px;color:var(--muted)">${current.isElim?current.phase:'Grupo '+current.group} · ${current.time||"?"} BRT · ${current.date}${current.isElim?' · ×'+mult+' pts':''}</div>
         </div>
         <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:${res?.h!==undefined?"var(--green)":"var(--muted)"}">${res?.h!==undefined?`${res.h} × ${res.a}`:"Aguardando resultado"}</div>
       </div>
@@ -931,10 +991,8 @@ function renderPalpitesEncerrados(){
           </tr>`).join("")}
         </tbody>
       </table>
-    </div>`;
-  });
-
-  return html;
+    </div>
+  `;
 }
 
 function renderEvolucao(){
@@ -1576,6 +1634,31 @@ function bindAll(){
   // ─── Gráfico de evolução (aba Evolução) ───
   if(currentTab==="evolucao"){
     setupEvolutionChart();
+  }
+
+  // ─── Palpites Encerrados: filtros, busca, navegação, seleção de jogo ───
+  if(currentTab==="palpitesencerrados"){
+    const fg=document.getElementById("pe-filter-group");
+    if(fg)fg.onchange=()=>{peFilterGroup=fg.value;render();};
+    const fd=document.getElementById("pe-filter-date");
+    if(fd)fd.onchange=()=>{peFilterDate=fd.value;render();};
+    const st=document.getElementById("pe-search-team");
+    if(st)st.oninput=()=>{peSearchTeam=st.value;render();};
+    document.querySelectorAll(".pe-list-item").forEach(el=>{
+      el.onclick=()=>{peSelectedId=el.dataset.rid;render();};
+    });
+    const prevBtn=document.getElementById("pe-prev");
+    if(prevBtn)prevBtn.onclick=()=>{
+      const all=getClosedMatchesList();
+      const idx=all.findIndex(m=>m.rid===peSelectedId);
+      if(all[idx+1]){peSelectedId=all[idx+1].rid;render();}
+    };
+    const nextBtn=document.getElementById("pe-next");
+    if(nextBtn)nextBtn.onclick=()=>{
+      const all=getClosedMatchesList();
+      const idx=all.findIndex(m=>m.rid===peSelectedId);
+      if(idx>0){peSelectedId=all[idx-1].rid;render();}
+    };
   }
 
   const dps=document.getElementById("sel-detail-player");if(dps)dps.onchange=()=>{detailPlayer=dps.value||null;render();};

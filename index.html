@@ -553,6 +553,7 @@ function render(){
     <div class="section ${currentTab==="ranking"?"active":""}">${renderRanking()}</div>
     <div class="section ${currentTab==="evolucao"?"active":""}">${renderEvolucao()}</div>
     <div class="section ${currentTab==="palpites"?"active":""}">${renderPalpites()}</div>
+    <div class="section ${currentTab==="palpitesencerrados"?"active":""}">${renderPalpitesEncerrados()}</div>
     <div class="section ${currentTab==="especiais"?"active":""}">${renderEspeciais()}</div>
     <div class="section ${currentTab==="resultados"?"active":""}">${renderResultados()}</div>
     <div class="section ${currentTab==="regras"?"active":""}">${renderRegras()}</div>
@@ -690,7 +691,7 @@ function renderTopBar(){
   </div>`;
 }
 function renderTabs(){
-  const tabs=[{k:"ranking",label:"🏆 Ranking"},{k:"evolucao",label:"📈 Evolução"},{k:"palpites",label:"✏️ Palpites"},{k:"especiais",label:"⭐ Especiais"},{k:"resultados",label:"📊 Resultados"},{k:"regras",label:"📋 Regras"},...(isAdmin?[{k:"admin",label:"⚙️ Admin"}]:[])];
+  const tabs=[{k:"ranking",label:"🏆 Ranking"},{k:"evolucao",label:"📈 Evolução"},{k:"palpites",label:"✏️ Palpites"},{k:"palpitesencerrados",label:"🔓 Palpites Encerrados"},{k:"especiais",label:"⭐ Especiais"},{k:"resultados",label:"📊 Resultados"},{k:"regras",label:"📋 Regras"},...(isAdmin?[{k:"admin",label:"⚙️ Admin"}]:[])];
   return`<div class="tabs">${tabs.map(t=>`<button class="tab ${currentTab===t.k?"active":""}" data-tab="${t.k}">${t.label}</button>`).join("")}</div>`;
 }
 
@@ -863,6 +864,77 @@ function renderEvoBadges(){
   badgeDiv.querySelectorAll("[data-remove-evo]").forEach(btn=>{
     btn.onclick=()=>{toggleEvoHighlight(btn.dataset.removeEvo);};
   });
+}
+
+function renderPalpitesEncerrados(){
+  const players=Object.keys(fbState.players);
+  if(!players.length)return`<div class="empty"><div class="icon">👥</div><p>Nenhum jogador ainda</p></div>`;
+
+  // Jogos cujo PRAZO de palpite já passou (lockTime <= agora), com ou sem resultado ainda
+  const now=Date.now();
+  const closedGroup=GROUP_MATCHES.filter(m=>{
+    const mt=matchTime(m.date,m.time);
+    return now>=lockTime(mt).getTime();
+  });
+  const closedElim=fbState.elimMatches.filter(m=>{
+    if(!m.date||!m.time)return false;
+    const mt=matchTime(m.date,m.time);
+    return now>=lockTime(mt).getTime();
+  });
+
+  if(!closedGroup.length&&!closedElim.length){
+    return`<div class="empty"><div class="icon">🔒</div><p>Nenhum jogo com prazo de palpite encerrado ainda. Os palpites de cada jogo aparecem aqui automaticamente 1h antes do início — mantendo a surpresa até lá.</p></div>`;
+  }
+
+  // Ordena por horário do jogo, mais recente primeiro
+  const allClosed=[
+    ...closedGroup.map(m=>({...m,isElim:false,mt:matchTime(m.date,m.time)})),
+    ...closedElim.map(m=>({...m,isElim:true,mt:matchTime(m.date,m.time)}))
+  ].sort((a,b)=>b.mt-a.mt);
+
+  let html=`<div class="alert info">🔓 Jogos exibidos aqui têm o prazo de palpite encerrado (1h antes do início). Jogos ainda abertos para palpite nunca aparecem nesta aba.</div>`;
+
+  allClosed.forEach(m=>{
+    const rid=m.isElim?'e_'+m.id:m.id;
+    const res=fbState.results[rid];
+    const mult=m.isElim?2:1;
+
+    const rows=players.map(n=>{
+      const p=fbState.players[n];
+      const realPal=m.isElim?p.elimPalpites?.[rid]:p.palpites?.[m.id];
+      const palStr=realPal?.h!==undefined?`${realPal.h} × ${realPal.a}`:"—";
+      const pts=res?.h!==undefined?calcPts(realPal,res,mult):null;
+      return{n,palStr,pts};
+    }).sort((a,b)=>a.n.localeCompare(b.n));
+
+    html+=`<div class="card" style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;flex-wrap:wrap;gap:6px">
+        <div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--blue)">${flag(m.home)} ${m.home} × ${m.away} ${flag(m.away)}</div>
+          <div style="font-size:11px;color:var(--muted)">${m.isElim?m.phase:'Grupo '+m.group} · ${m.time||"?"} BRT · ${m.date}${m.isElim?' · ×'+mult+' pts':''}</div>
+        </div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:${res?.h!==undefined?"var(--green)":"var(--muted)"}">${res?.h!==undefined?`${res.h} × ${res.a}`:"Aguardando resultado"}</div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="border-bottom:2px solid var(--gold)">
+            <th style="text-align:left;padding:6px 8px;color:var(--muted);font-weight:600">Participante</th>
+            <th style="text-align:center;padding:6px 8px;color:var(--muted);font-weight:600">Palpite</th>
+            <th style="text-align:right;padding:6px 8px;color:var(--muted);font-weight:600">Pontos</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r=>`<tr style="border-bottom:1px solid var(--border)${r.n===currentUser?';background:#f0fff4':''}">
+            <td style="padding:6px 8px">${r.n}${r.n===currentUser?' <span style="font-size:11px;color:var(--green)">(você)</span>':''}</td>
+            <td style="text-align:center;padding:6px 8px;font-weight:600">${r.palStr}</td>
+            <td style="text-align:right;padding:6px 8px;color:${r.pts===null?'var(--muted)':r.pts===0?'var(--red)':'var(--green)'};font-weight:600">${r.pts===null?'—':r.pts}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>`;
+  });
+
+  return html;
 }
 
 function renderEvolucao(){

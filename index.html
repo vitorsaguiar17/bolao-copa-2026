@@ -104,6 +104,8 @@ input:focus,select:focus{border-color:var(--blue)}
 .evo-result-item:hover{background:var(--surface2)}
 .regra-importante-banner{background:rgba(230,51,41,0.08);border:2px solid var(--red);border-radius:12px;padding:14px 16px;margin-bottom:16px;color:#b91c1c;font-size:13px;line-height:1.6}
 .regra-importante-banner strong{color:#dc2626}
+.info-premiacao-banner{background:rgba(0,156,59,0.06);border:1.5px solid var(--green);border-radius:12px;padding:14px 16px;margin-bottom:16px;color:#166534;font-size:13px;line-height:1.6}
+.info-premiacao-banner strong{color:#15803d}
 @keyframes spin{to{transform:rotate(360deg)}}
 .view-toggle{display:flex;gap:4px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
 .filter-sep{width:1px;background:var(--border);margin:0 6px;height:24px;display:inline-block}
@@ -555,6 +557,10 @@ function render(){
     ${renderTopBar()}
     <div class="regra-importante-banner">
       ⚠️ <strong>ATENÇÃO:</strong> nas fases eliminatórias, em caso de empate no tempo regulamentar (90'), o resultado final registrado para o jogo será o <strong>RESULTADO FINAL APÓS OS 120', INCLUINDO O TEMPO DE PRORROGAÇÃO</strong>. Se houver vencedor nos 30 minutos adicionais, o time classificado será considerado <strong>VENCEDOR PELO PLACAR AO FINAL DA PRORROGAÇÃO</strong>. Em caso de persistência de empate e ida para os pênaltis, o resultado final da partida será o <strong>EMPATE</strong>.
+    </div>
+    <div class="info-premiacao-banner">
+      🏆 <strong>Premiação:</strong> Vencedor — 70% · 2º colocado — 20% · 3º colocado — 10%<br>
+      💸 Para quem ainda não fez! Pix R$ 20,00 — chave 31993632868
     </div>
     ${renderTabs()}
     <div class="section ${currentTab==="ranking"?"active":""}">${renderRanking()}</div>

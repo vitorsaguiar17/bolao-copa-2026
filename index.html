@@ -102,6 +102,8 @@ input:focus,select:focus{border-color:var(--blue)}
 .api-card{background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:14px;margin-bottom:10px}
 .api-card h4{color:var(--blue);font-size:14px;font-weight:600;margin-bottom:6px}
 .evo-result-item:hover{background:var(--surface2)}
+.regra-importante-banner{background:rgba(230,51,41,0.08);border:2px solid var(--red);border-radius:12px;padding:14px 16px;margin-bottom:16px;color:#b91c1c;font-size:13px;line-height:1.6}
+.regra-importante-banner strong{color:#dc2626}
 @keyframes spin{to{transform:rotate(360deg)}}
 .view-toggle{display:flex;gap:4px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
 .filter-sep{width:1px;background:var(--border);margin:0 6px;height:24px;display:inline-block}
@@ -550,7 +552,11 @@ function render(){
   const root=document.getElementById("root");
   if(!currentUser&&!isAdmin){root.innerHTML=renderLogin();bindLogin();return;}
   root.innerHTML=`
-    ${renderTopBar()}${renderTabs()}
+    ${renderTopBar()}
+    <div class="regra-importante-banner">
+      ⚠️ <strong>ATENÇÃO:</strong> nas fases eliminatórias, em caso de empate no tempo regulamentar (90'), o resultado final registrado para o jogo será o <strong>RESULTADO FINAL APÓS OS 120', INCLUINDO O TEMPO DE PRORROGAÇÃO</strong>. Se houver vencedor nos 30 minutos adicionais, o time classificado será considerado <strong>VENCEDOR PELO PLACAR AO FINAL DA PRORROGAÇÃO</strong>. Em caso de persistência de empate e ida para os pênaltis, o resultado final da partida será o <strong>EMPATE</strong>.
+    </div>
+    ${renderTabs()}
     <div class="section ${currentTab==="ranking"?"active":""}">${renderRanking()}</div>
     <div class="section ${currentTab==="evolucao"?"active":""}">${renderEvolucao()}</div>
     <div class="section ${currentTab==="palpites"?"active":""}">${renderPalpites()}</div>

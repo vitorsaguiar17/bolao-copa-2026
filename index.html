@@ -288,7 +288,7 @@ const GROUPS={
     {id:68,home:"Croácia",away:"Gana",date:"27/06",time:"18h",city:"Philadelphia"}
   ]}
 };
-const ELIM_PHASES=[{phase:"Oitavas",label:"Dezesseis-avos de Final"},{phase:"Quartas",label:"Quartas de Final"},{phase:"Semi",label:"Semifinais"},{phase:"Final",label:"Final + 3º Lugar"}];
+const ELIM_PHASES=[{phase:"R32",label:"Dezesseis-avos de Final"},{phase:"Oitavas",label:"Oitavas de Final"},{phase:"Quartas",label:"Quartas de Final"},{phase:"Semi",label:"Semifinais"},{phase:"Final",label:"Final + 3º Lugar"}];
 const GROUP_MATCHES=[];
 for(const g in GROUPS)GROUPS[g].matches.forEach(m=>GROUP_MATCHES.push({...m,group:g,phase:"Grupos"}));
 const ALL_TEAMS=Object.values(GROUPS).flatMap(g=>g.teams).sort();
@@ -1419,7 +1419,11 @@ function renderAdminElim(){
 }
 
 // ─── API IMPORT ───
-const TEAM_MAP={"Brazil":"Brasil","Morocco":"Marrocos","France":"França","Argentina":"Argentina","England":"Inglaterra","Portugal":"Portugal","Spain":"Espanha","Germany":"Alemanha","Netherlands":"Holanda","Belgium":"Bélgica","Croatia":"Croácia","Senegal":"Senegal","Japan":"Japão","South Korea":"Coreia do Sul","United States":"Estados Unidos","Mexico":"México","Canada":"Canadá","Ecuador":"Equador","Uruguay":"Uruguai","Colombia":"Colômbia","Türkiye":"Turquia","Switzerland":"Suíça","Qatar":"Catar","Ghana":"Gana","Tunisia":"Tunísia","Iran":"Irã","Saudi Arabia":"Arábia Saudita","South Africa":"África do Sul","Czech Republic":"República Tcheca","Czechia":"República Tcheca","Czech Rep.":"República Tcheca","Norway":"Noruega","Sweden":"Suécia","Austria":"Áustria","Algeria":"Argélia","Egypt":"Egito","New Zealand":"Nova Zelândia","Ivory Coast":"Costa do Marfim","DR Congo":"R. D. Congo","Panama":"Panamá","Paraguay":"Paraguai","Haiti":"Haiti","Scotland":"Escócia","Bosnia-Herzegovina":"Bósnia e Herzegovina","Jordan":"Jordânia","Iraq":"Iraque","Uzbekistan":"Uzbequistão","Curaçao":"Curaçao","Cape Verde":"Cabo Verde","Australia":"Austrália","Poland":"Polônia","Cameroon":"Camarões","Serbia":"Sérvia"};
+const TEAM_MAP={"Brazil":"Brasil","Morocco":"Marrocos","France":"França","Argentina":"Argentina","England":"Inglaterra","Portugal":"Portugal","Spain":"Espanha","Germany":"Alemanha","Netherlands":"Holanda","Belgium":"Bélgica","Croatia":"Croácia","Senegal":"Senegal","Japan":"Japão","South Korea":"Coreia do Sul","United States":"Estados Unidos","Mexico":"México","Canada":"Canadá","Ecuador":"Equador","Uruguay":"Uruguai","Colombia":"Colômbia","Türkiye":"Turquia","Switzerland":"Suíça","Qatar":"Catar","Ghana":"Gana","Tunisia":"Tunísia","Iran":"Irã","Saudi Arabia":"Arábia Saudita","South Africa":"África do Sul","Czech Republic":"República Tcheca","Czechia":"República Tcheca","Czech Rep.":"República Tcheca","Norway":"Noruega","Sweden":"Suécia","Austria":"Áustria","Algeria":"Argélia","Egypt":"Egito","New Zealand":"Nova Zelândia","Ivory Coast":"Costa do Marfim","DR Congo":"R. D. Congo","Panama":"Panamá","Paraguay":"Paraguai","Haiti":"Haiti","Scotland":"Escócia","Bosnia-Herzegovina":"Bósnia e Herzegovina","Jordan":"Jordânia","Iraq":"Iraque","Uzbekistan":"Uzbequistão","Curaçao":"Curaçao","Cape Verde":"Cabo Verde","Australia":"Austrália","Poland":"Polônia","Cameroon":"Camarões","Serbia":"Sérvia",
+"Korea Republic":"Coreia do Sul","Republic of Korea":"Coreia do Sul",
+"Cape Verde Islands":"Cabo Verde",
+"Congo DR":"R. D. Congo","DR Congo, the":"R. D. Congo","Congo, Dem. Rep.":"R. D. Congo","Democratic Republic of the Congo":"R. D. Congo",
+"Bosnia and Herzegovina":"Bósnia e Herzegovina"};
 function toPort(name){return TEAM_MAP[name]||name;}
 
 async function apiImportResults(showStatus=true){
@@ -1453,10 +1457,10 @@ async function apiImportResults(showStatus=true){
 
 async function apiImportElim(showStatus=true){
   try{
-    const resp=await fetch(`${FD_BASE}/competitions/${WC2026_ID}/matches?stage=LAST_16,QUARTER_FINALS,SEMI_FINALS,THIRD_PLACE,FINAL`,{headers:{"X-Auth-Token":API_KEY}});
+    const resp=await fetch(`${FD_BASE}/competitions/${WC2026_ID}/matches?stage=LAST_32,LAST_16,ROUND_OF_32,ROUND_OF_16,QUARTER_FINALS,SEMI_FINALS,THIRD_PLACE,FINAL`,{headers:{"X-Auth-Token":API_KEY}});
     if(!resp.ok)return;
     const data=await resp.json();
-    const phaseMap={"LAST_16":"Oitavas","QUARTER_FINALS":"Quartas","SEMI_FINALS":"Semi","THIRD_PLACE":"Final","FINAL":"Final"};
+    const phaseMap={"LAST_32":"R32","ROUND_OF_32":"R32","LAST_16":"Oitavas","ROUND_OF_16":"Oitavas","QUARTER_FINALS":"Quartas","SEMI_FINALS":"Semi","THIRD_PLACE":"Final","FINAL":"Final"};
     const elimUpdates={};
     (data.matches||[]).forEach(match=>{
       if(!match.homeTeam?.name||match.homeTeam.name==="TBD"||match.homeTeam.name==="Yet to be defined")return;

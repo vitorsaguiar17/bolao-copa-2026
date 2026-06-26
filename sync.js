@@ -26,7 +26,8 @@ const TEAM_MAP = {
   "Iraq":"Iraque","Norway":"Noruega","Argentina":"Argentina","Algeria":"Argélia",
   "Austria":"Áustria","Jordan":"Jordânia","Ghana":"Gana","Panama":"Panamá",
   "England":"Inglaterra","Croatia":"Croácia","Portugal":"Portugal",
-  "DR Congo":"R. D. Congo","Democratic Republic of Congo":"R. D. Congo",
+  "DR Congo":"R. D. Congo","Democratic Republic of Congo":"R. D. Congo","Congo DR":"R. D. Congo",
+  "Cape Verde Islands":"Cabo Verde",
   "Uzbekistan":"Uzbequistão","Colombia":"Colômbia"
 };
 function toPort(name) {
@@ -111,7 +112,8 @@ const GROUP_MATCHES = [
 ];
 
 const PHASE_MAP = {
-  "LAST_16":"Oitavas","QUARTER_FINALS":"Quartas",
+  "LAST_32":"R32","ROUND_OF_32":"R32",
+  "LAST_16":"Oitavas","ROUND_OF_16":"Oitavas","QUARTER_FINALS":"Quartas",
   "SEMI_FINALS":"Semi","THIRD_PLACE":"Final","FINAL":"Final"
 };
 
@@ -175,7 +177,7 @@ async function syncElim() {
   console.log('🏟️ Sincronizando eliminatórias...');
   try {
     const resp = await fetch(
-      `${FD_BASE}/competitions/${WC2026_ID}/matches?stage=LAST_16,QUARTER_FINALS,SEMI_FINALS,THIRD_PLACE,FINAL`,
+      `${FD_BASE}/competitions/${WC2026_ID}/matches?stage=LAST_32,LAST_16,ROUND_OF_32,ROUND_OF_16,QUARTER_FINALS,SEMI_FINALS,THIRD_PLACE,FINAL`,
       { headers: { 'X-Auth-Token': API_KEY } }
     );
     if (!resp.ok) return;

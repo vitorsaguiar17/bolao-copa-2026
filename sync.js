@@ -237,7 +237,8 @@ async function syncElim() {
           apiMatchId: match.id,
           date: `${dd}/${mm}`,
           time: `${hh}h${mn > 0 ? mn.toString().padStart(2,'0') : ''}`,
-          city: match.venue || ''
+          city: match.venue || '',
+          noEarlyLock: exists?.noEarlyLock || null // preserva exceção de prazo definida manualmente pelo admin
         };
         console.log(`  ✅ ${exists?'Atualizado':'Novo'} confronto: ${homePT} × ${awayPT} (${phase})`);
       }

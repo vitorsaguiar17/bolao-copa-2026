@@ -389,6 +389,17 @@ function hideSyncBadge(){
 }
 
 // ─── PONTUAÇÃO ───
+// Formata o placar de um jogo, incluindo o resultado de pênaltis entre parênteses
+// quando existir — não afeta a pontuação, é só exibição.
+function fmtResultado(res){
+  if(!res||res.h===undefined)return null;
+  const base=`${res.h} × ${res.a}`;
+  if(res.pensH!==undefined&&res.pensH!==null){
+    return`${base} <span style="font-size:11px;color:var(--muted);font-weight:400">(pên. ${res.pensH}×${res.pensA})</span>`;
+  }
+  return base;
+}
+
 function calcPts(pal,res,mult=1){
   if(!res||res.h===undefined||res.h==="")return null;
   if(!pal||pal.h===undefined||pal.h==="")return 0;
@@ -985,7 +996,7 @@ function renderPalpitesEncerrados(){
           <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--blue)">${flag(current.home)} ${current.home} × ${current.away} ${flag(current.away)}</div>
           <div style="font-size:11px;color:var(--muted)">${current.isElim?current.phase:'Grupo '+current.group} · ${current.time||"?"} BRT · ${current.date}${current.isElim?' · ×'+mult+' pts':''}</div>
         </div>
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:${res?.h!==undefined?"var(--green)":"var(--muted)"}">${res?.h!==undefined?`${res.h} × ${res.a}`:"Aguardando resultado"}</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:${res?.h!==undefined?"var(--green)":"var(--muted)"}">${res?.h!==undefined?fmtResultado(res):"Aguardando resultado"}</div>
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:13px">
         <thead>
@@ -1163,7 +1174,7 @@ function renderPalpites(){
           </div>
           <div class="match-date-label">${m.time||"?"} BRT · ${m.date||"A definir"} · ×2 pts</div>
           <div style="margin-top:3px">${mt?lockBadge(mt,hasResult):`<span class="lock-badge lock-open">🟢 Aberto</span>`}</div>
-          ${hasResult?`<div style="font-size:10px;color:var(--green);margin-top:2px">Resultado: ${res.h}×${res.a}</div>`:""}
+          ${hasResult?`<div style="font-size:10px;color:var(--green);margin-top:2px">Resultado: ${fmtResultado(res)}</div>`:""}
           ${!isAdmin&&!locked_elim?`<div id="status_${eid}" class="save-status">${savedPal?.h!==undefined?"✅ Palpite salvo":""}</div>`:""}
         </div>
         <div class="match-team right">${m.away} ${flag(m.away)}</div>
@@ -1244,7 +1255,7 @@ function renderResultados(){
       html+=`<div class="result-row">
         <div style="font-weight:500;font-size:13px">${flag(m.home)} ${m.home}</div>
         <div style="text-align:center">
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:${res?.h!==undefined?"var(--blue)":"var(--muted)"}">${res?.h!==undefined?`${res.h} × ${res.a}`:"vs"}</div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:${res?.h!==undefined?"var(--blue)":"var(--muted)"}">${res?.h!==undefined?fmtResultado(res):"vs"}</div>
           <div style="font-size:10px;color:var(--muted)">${m.time||"?"} BRT · ${m.date||"A definir"}</div>
         </div>
         <div style="font-weight:500;font-size:13px;text-align:right">${m.away} ${flag(m.away)}</div>
@@ -1399,6 +1410,13 @@ function renderAdminElim(){
               <span class="score-sep">×</span>
               <input class="score-input" type="number" min="0" max="99" data-rid="${eid}" data-side="a" value="${res?.a??''}">
             </div>
+            <div style="font-size:9px;color:var(--muted);text-align:center;margin-top:2px">Resultado final do jogo (após prorrogação se houver) — empate aqui se foi decidido nos pênaltis</div>
+            <div class="score-inputs" style="margin-top:4px">
+              <input class="score-input" style="width:30px;font-size:12px" type="number" min="0" max="99" data-rid="${eid}" data-side="pensH" value="${res?.pensH??''}" placeholder="pên">
+              <span class="score-sep" style="font-size:12px">×</span>
+              <input class="score-input" style="width:30px;font-size:12px" type="number" min="0" max="99" data-rid="${eid}" data-side="pensA" value="${res?.pensA??''}" placeholder="pên">
+            </div>
+            <div style="font-size:9px;color:var(--muted);text-align:center">Placar dos pênaltis (opcional, só exibição — não conta pontos)</div>
             <div style="display:flex;gap:4px;justify-content:center;margin-top:4px;flex-wrap:wrap">
               <input style="margin:0;font-size:10px;padding:3px 6px;width:70px" value="${m.date||''}" data-elim-id="${m.id}" data-elim-side="date" placeholder="dd/mm">
               <input style="margin:0;font-size:10px;padding:3px 6px;width:55px" value="${m.time||''}" data-elim-id="${m.id}" data-elim-side="time" placeholder="16h">
@@ -1434,7 +1452,22 @@ async function apiImportResults(showStatus=true){
     const matches=data.matches||[];
     const updates={};
     matches.forEach(match=>{
-      const h=match.score?.fullTime?.home,a=match.score?.fullTime?.away;
+      // REGRA CRÍTICA: para fins de pontuação do bolão, o resultado válido é:
+      // - duration REGULAR: fullTime (90 min) já é o resultado correto
+      // - duration EXTRA_TIME: fullTime já inclui a prorrogação (120 min) — correto, pois houve vencedor
+      // - duration PENALTY_SHOOTOUT: fullTime da API inclui os gols de pênaltis somados ao 120'.
+      //   Para o bolão, o resultado registrado deve ser o EMPATE da prorrogação (120'), sem os pênaltis.
+      //   Logo usamos regularTime + extraTime (excluindo penalties) quando duration=PENALTY_SHOOTOUT.
+      let h,a;
+      const duration=match.score?.duration;
+      if(duration==="PENALTY_SHOOTOUT"){
+        const rt=match.score?.regularTime,et=match.score?.extraTime;
+        h=(rt?.home??0)+(et?.home??0);
+        a=(rt?.away??0)+(et?.away??0);
+      } else {
+        h=match.score?.fullTime?.home;
+        a=match.score?.fullTime?.away;
+      }
       if(h===null||h===undefined)return;
       const homePT=toPort(match.homeTeam?.name||"");
       const awayPT=toPort(match.awayTeam?.name||"");
@@ -1462,19 +1495,24 @@ async function apiImportElim(showStatus=true){
     const data=await resp.json();
     const phaseMap={"LAST_32":"R32","ROUND_OF_32":"R32","LAST_16":"Oitavas","ROUND_OF_16":"Oitavas","QUARTER_FINALS":"Quartas","SEMI_FINALS":"Semi","THIRD_PLACE":"Final","FINAL":"Final"};
     const elimUpdates={};
+    const isPlaceholder=n=>!n||n==="TBD"||n==="Yet to be defined";
     (data.matches||[]).forEach(match=>{
-      if(!match.homeTeam?.name||match.homeTeam.name==="TBD"||match.homeTeam.name==="Yet to be defined")return;
+      const homeRaw=match.homeTeam?.name,awayRaw=match.awayTeam?.name;
+      if(isPlaceholder(homeRaw)||isPlaceholder(awayRaw))return; // só importa quando os dois times já confirmados
       const phase=phaseMap[match.stage];if(!phase)return;
-      const homePT=toPort(match.homeTeam.name),awayPT=toPort(match.awayTeam?.name||"");
-      const exists=fbState.elimMatches.find(m=>m.phase===phase&&(m.home===homePT||m.away===awayPT));
-      if(exists)return;
-      const id=match.id||Date.now();
+      const homePT=toPort(homeRaw),awayPT=toPort(awayRaw);
+      const existsByApiId=fbState.elimMatches.find(m=>m.apiMatchId===match.id);
+      const existsByTeams=fbState.elimMatches.find(m=>m.phase===phase&&((m.home===homePT&&m.away===awayPT)||(m.home===awayPT&&m.away===homePT)));
+      const exists=existsByApiId||existsByTeams;
+      const isIncomplete=m=>!m.home||!m.away||m.home==="Time A"||m.away==="Time B";
+      if(exists&&!isIncomplete(exists))return; // já completo, nada a fazer
+      const id=exists?exists.id:(match.id||Date.now());
       const dt=new Date(match.utcDate);
       const brt=new Date(dt.getTime()-3*3600000);
       const dateStr=`${brt.getUTCDate().toString().padStart(2,"0")}/${(brt.getUTCMonth()+1).toString().padStart(2,"0")}`;
       const h=brt.getUTCHours(),mn=brt.getUTCMinutes();
       const timeStr=`${h.toString().padStart(2,"0")}h${mn>0?mn.toString().padStart(2,"0"):""}`;
-      elimUpdates[`bolao/elimMatches/${id}`]={id,phase,home:homePT,away:awayPT,date:dateStr,time:timeStr,city:match.venue||""};
+      elimUpdates[`bolao/elimMatches/${id}`]={id,phase,home:homePT,away:awayPT,apiMatchId:match.id,date:dateStr,time:timeStr,city:match.venue||""};
     });
     if(Object.keys(elimUpdates).length)await update(ref(db),elimUpdates);
   }catch(e){console.log("API elim error",e);}
@@ -1601,12 +1639,22 @@ async function adminClickHandler(e){
     e.stopPropagation();
     const eid=parseInt(se);
     const get=side=>document.querySelector(`input[data-elim-id="${eid}"][data-elim-side="${side}"]`)?.value||"";
+    const getRid=side=>document.querySelector(`input[data-rid="${'e_'+eid}"][data-side="${side}"]`)?.value||"";
     const updates={};
     ["home","away","date","time","city"].forEach(s=>updates[`bolao/elimMatches/${eid}/${s}`]=get(s));
     const rid='e_'+eid;
     if(localResults[rid]){
       if(localResults[rid].h!=="")updates[`bolao/results/${rid}/h`]=localResults[rid].h;
       if(localResults[rid].a!=="")updates[`bolao/results/${rid}/a`]=localResults[rid].a;
+    }
+    // Placar de pênaltis (opcional, só exibição)
+    const pensH=getRid("pensH"),pensA=getRid("pensA");
+    if(pensH!==""&&pensA!==""){
+      updates[`bolao/results/${rid}/pensH`]=pensH;
+      updates[`bolao/results/${rid}/pensA`]=pensA;
+    } else if(pensH===""&&pensA===""){
+      updates[`bolao/results/${rid}/pensH`]=null;
+      updates[`bolao/results/${rid}/pensA`]=null;
     }
     await update(ref(db),updates);alert("Salvo!");return;
   }

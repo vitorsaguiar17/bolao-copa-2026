@@ -169,10 +169,13 @@ function matchTime(date,time){
   const [hStr,minStr]=t.split(":");
   return new Date(Date.UTC(2026,m-1,d,parseInt(hStr)+3,parseInt(minStr||"0"),0));
 }
-function lockTime(dt){return new Date(dt.getTime()-60*60*1000)}
-function matchState(mt,hasResult){
+function lockTime(dt,noEarlyLock){
+  if(noEarlyLock)return dt; // exceção: fecha exatamente no horário do jogo, sem 1h de antecedência
+  return new Date(dt.getTime()-60*60*1000);
+}
+function matchState(mt,hasResult,noEarlyLock){
   if(hasResult)return"played";
-  const now=Date.now(),lt=lockTime(mt).getTime();
+  const now=Date.now(),lt=lockTime(mt,noEarlyLock).getTime();
   if(now>=lt)return"locked";
   if(lt-now<2*3600000)return"soon";
   return"open";
@@ -182,8 +185,8 @@ function fmtCountdown(ms){
   const h=Math.floor(ms/3600000),m=Math.floor((ms%3600000)/60000);
   return h>0?`${h}h ${m}min`:`${m}min`;
 }
-function fmtLockBRT(mt){
-  const brt=new Date(lockTime(mt).getTime()-3*3600000);
+function fmtLockBRT(mt,noEarlyLock){
+  const brt=new Date(lockTime(mt,noEarlyLock).getTime()-3*3600000);
   return`${brt.getUTCDate().toString().padStart(2,"0")}/${(brt.getUTCMonth()+1).toString().padStart(2,"0")} às ${brt.getUTCHours().toString().padStart(2,"0")}h${brt.getUTCMinutes()>0?brt.getUTCMinutes().toString().padStart(2,"0"):""}`;
 }
 
@@ -517,17 +520,17 @@ function formDot(color){
   const titles={green:"Placar exato",yellow:"Vencedor + saldo",gray:"Só vencedor",red:"Errou",none:"Sem palpite"};
   return`<span title="${titles[color]}" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${colors[color]};margin-right:2px"></span>`;
 }
-function isLocked(mt,hasResult){
+function isLocked(mt,hasResult,noEarlyLock){
   if(hasResult)return true;
   if(isAdmin)return false;
-  return Date.now()>=lockTime(mt).getTime();
+  return Date.now()>=lockTime(mt,noEarlyLock).getTime();
 }
-function lockBadge(mt,hasResult){
+function lockBadge(mt,hasResult,noEarlyLock){
   if(hasResult)return`<span class="lock-badge lock-played">✅ Encerrado</span>`;
-  const now=Date.now(),lt=lockTime(mt).getTime(),msLeft=lt-now;
+  const now=Date.now(),lt=lockTime(mt,noEarlyLock).getTime(),msLeft=lt-now;
   if(msLeft<=0)return`<span class="lock-badge lock-closed">🔒 Palpite encerrado</span>`;
   if(msLeft<2*3600000)return`<span class="lock-badge lock-soon" data-countdown="${lt}">⚠️ Fecha em ${fmtCountdown(msLeft)}</span>`;
-  return`<span class="lock-badge lock-open">🟢 Aberto até ${fmtLockBRT(mt)}</span>`;
+  return`<span class="lock-badge lock-open">🟢 Aberto até ${fmtLockBRT(mt,noEarlyLock)}</span>`;
 }
 
 // ─── AUTO-SAVE POR JOGO ───
@@ -907,7 +910,7 @@ function getClosedMatchesList(){
     .map(m=>({...m,isElim:false,rid:String(m.id),mt:matchTime(m.date,m.time)}));
   const closedElim=fbState.elimMatches.filter(m=>{
     if(!m.date||!m.time)return false;
-    return now>=lockTime(matchTime(m.date,m.time)).getTime();
+    return now>=lockTime(matchTime(m.date,m.time),m.noEarlyLock).getTime();
   }).map(m=>({...m,isElim:true,rid:'e_'+m.id,mt:matchTime(m.date,m.time)}));
   return [...closedGroup,...closedElim].sort((a,b)=>b.mt-a.mt); // mais recente primeiro
 }
@@ -1154,7 +1157,7 @@ function renderPalpites(){
       const eid='e_'+m.id;
       const hasResult=fbState.results[eid]?.h!==undefined;
       const mt=m.date&&m.time?matchTime(m.date,m.time):null;
-      const locked_elim=!isAdmin&&(hasResult||(mt?isLocked(mt,hasResult):false));
+      const locked_elim=!isAdmin&&(hasResult||(mt?isLocked(mt,hasResult,m.noEarlyLock):false));
       const pl=viewPlayer?fbState.players[viewPlayer]:null;
       const savedPal=pl?.elimPalpites?.[eid];
       const res=fbState.results[eid];
@@ -1173,7 +1176,7 @@ function renderPalpites(){
               value="${savedPal?.a??""}" ${locked_elim?'disabled':""}>
           </div>
           <div class="match-date-label">${m.time||"?"} BRT · ${m.date||"A definir"} · ×2 pts</div>
-          <div style="margin-top:3px">${mt?lockBadge(mt,hasResult):`<span class="lock-badge lock-open">🟢 Aberto</span>`}</div>
+          <div style="margin-top:3px">${mt?lockBadge(mt,hasResult,m.noEarlyLock):`<span class="lock-badge lock-open">🟢 Aberto</span>`}</div>
           ${hasResult?`<div style="font-size:10px;color:var(--green);margin-top:2px">Resultado: ${fmtResultado(res)}</div>`:""}
           ${!isAdmin&&!locked_elim?`<div id="status_${eid}" class="save-status">${savedPal?.h!==undefined?"✅ Palpite salvo":""}</div>`:""}
         </div>
@@ -1422,6 +1425,10 @@ function renderAdminElim(){
               <input style="margin:0;font-size:10px;padding:3px 6px;width:55px" value="${m.time||''}" data-elim-id="${m.id}" data-elim-side="time" placeholder="16h">
               <input style="margin:0;font-size:10px;padding:3px 6px;width:90px" value="${m.city||''}" data-elim-id="${m.id}" data-elim-side="city" placeholder="cidade">
             </div>
+            <label style="display:flex;align-items:center;gap:4px;justify-content:center;margin-top:4px;font-size:10px;color:var(--orange)">
+              <input type="checkbox" id="noearly_${m.id}" ${m.noEarlyLock?"checked":""} style="margin:0;width:auto">
+              Exceção: fechar palpite só na hora do jogo (sem 1h de antecedência)
+            </label>
             <div style="display:flex;gap:4px;justify-content:center;margin-top:4px">
               <button class="btn btn-sm btn-green" style="font-size:11px;padding:3px 8px" data-save-elim="${m.id}">✓ Salvar</button>
               <button class="btn btn-sm btn-danger" style="font-size:11px;padding:3px 8px" data-del-elim="${m.id}">✕</button>
@@ -1512,7 +1519,7 @@ async function apiImportElim(showStatus=true){
       const dateStr=`${brt.getUTCDate().toString().padStart(2,"0")}/${(brt.getUTCMonth()+1).toString().padStart(2,"0")}`;
       const h=brt.getUTCHours(),mn=brt.getUTCMinutes();
       const timeStr=`${h.toString().padStart(2,"0")}h${mn>0?mn.toString().padStart(2,"0"):""}`;
-      elimUpdates[`bolao/elimMatches/${id}`]={id,phase,home:homePT,away:awayPT,apiMatchId:match.id,date:dateStr,time:timeStr,city:match.venue||""};
+      elimUpdates[`bolao/elimMatches/${id}`]={id,phase,home:homePT,away:awayPT,apiMatchId:match.id,date:dateStr,time:timeStr,city:match.venue||"",noEarlyLock:exists?.noEarlyLock||null};
     });
     if(Object.keys(elimUpdates).length)await update(ref(db),elimUpdates);
   }catch(e){console.log("API elim error",e);}
@@ -1642,6 +1649,8 @@ async function adminClickHandler(e){
     const getRid=side=>document.querySelector(`input[data-rid="${'e_'+eid}"][data-side="${side}"]`)?.value||"";
     const updates={};
     ["home","away","date","time","city"].forEach(s=>updates[`bolao/elimMatches/${eid}/${s}`]=get(s));
+    const noEarlyCheckbox=document.getElementById(`noearly_${eid}`);
+    updates[`bolao/elimMatches/${eid}/noEarlyLock`]=noEarlyCheckbox&&noEarlyCheckbox.checked?true:null;
     const rid='e_'+eid;
     if(localResults[rid]){
       if(localResults[rid].h!=="")updates[`bolao/results/${rid}/h`]=localResults[rid].h;

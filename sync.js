@@ -133,8 +133,18 @@ async function syncResults() {
 
     const updates = {};
     matches.forEach(match => {
-      const h = match.score?.fullTime?.home;
-      const a = match.score?.fullTime?.away;
+      // REGRA: empate em pênaltis conta como EMPATE no bolão (placar dos 120', sem os pênaltis).
+      // A API soma os pênaltis ao fullTime quando duration=PENALTY_SHOOTOUT, então corrigimos aqui.
+      let h, a;
+      const duration = match.score?.duration;
+      if (duration === 'PENALTY_SHOOTOUT') {
+        const rt = match.score?.regularTime, et = match.score?.extraTime;
+        h = (rt?.home ?? 0) + (et?.home ?? 0);
+        a = (rt?.away ?? 0) + (et?.away ?? 0);
+      } else {
+        h = match.score?.fullTime?.home;
+        a = match.score?.fullTime?.away;
+      }
       if (h === null || h === undefined) return;
 
       const homeEN = match.homeTeam?.name || '';
@@ -142,7 +152,7 @@ async function syncResults() {
       const homePT = toPort(homeEN);
       const awayPT = toPort(awayEN);
 
-      console.log(`  Processando: ${homeEN} (${homePT}) ${h}×${a} ${awayEN} (${awayPT})`);
+      console.log(`  Processando: ${homeEN} (${homePT}) ${h}×${a} ${awayEN} (${awayPT})${duration==='PENALTY_SHOOTOUT'?' [resultado pós-pênaltis ajustado p/ empate dos 120min]':''}`);
 
       // Busca pelo par home/away exato
       const gm = GROUP_MATCHES.find(m =>
@@ -188,23 +198,34 @@ async function syncElim() {
     const resultUpdates = {};
 
     (data.matches || []).forEach(match => {
-      if (!match.homeTeam?.name ||
-          match.homeTeam.name === 'TBD' ||
-          match.homeTeam.name === 'Yet to be defined') return;
+      const homeNameRaw = match.homeTeam?.name;
+      const awayNameRaw = match.awayTeam?.name;
+      const isPlaceholder = (n) => !n || n === 'TBD' || n === 'Yet to be defined';
+
+      // Só processa quando os DOIS times já estão confirmados pela API
+      if (isPlaceholder(homeNameRaw) || isPlaceholder(awayNameRaw)) {
+        console.log(`  ⏳ Confronto ainda incompleto, aguardando definição: ${homeNameRaw||'?'} × ${awayNameRaw||'?'} (${match.stage})`);
+        return;
+      }
 
       const phase = PHASE_MAP[match.stage];
       if (!phase) return;
 
-      const homePT = toPort(match.homeTeam.name);
-      const awayPT = toPort(match.awayTeam?.name || '');
+      const homePT = toPort(homeNameRaw);
+      const awayPT = toPort(awayNameRaw);
 
-      const exists = existing.find(m =>
-        m.phase === phase &&
-        (m.home === homePT || m.away === awayPT)
-      );
+      // Casa pelo ID do jogo da API quando disponível (mais confiável que nomes parciais)
+      const exists = existing.find(m => m.apiMatchId === match.id) ||
+        existing.find(m =>
+          m.phase === phase &&
+          ((m.home === homePT && m.away === awayPT) || (m.home === awayPT && m.away === homePT))
+        );
 
-      if (!exists) {
-        const id = match.id || Date.now();
+      // Considera "incompleto" se o adversário está vazio, placeholder, ou diferente do que a API confirma agora
+      const isIncomplete = (m) => !m.home || !m.away || m.home === 'Time A' || m.away === 'Time B' || m.home === '' || m.away === '';
+
+      if (!exists || isIncomplete(exists)) {
+        const id = exists ? exists.id : (match.id || Date.now());
         const dt = new Date(match.utcDate);
         const brt = new Date(dt.getTime() - 3 * 3600000);
         const dd = brt.getUTCDate().toString().padStart(2,'0');
@@ -213,20 +234,39 @@ async function syncElim() {
         const mn = brt.getUTCMinutes();
         updates[`bolao/elimMatches/${id}`] = {
           id, phase, home: homePT, away: awayPT,
+          apiMatchId: match.id,
           date: `${dd}/${mm}`,
           time: `${hh}h${mn > 0 ? mn.toString().padStart(2,'0') : ''}`,
           city: match.venue || ''
         };
-        console.log(`  ✅ Novo confronto: ${homePT} × ${awayPT} (${phase})`);
+        console.log(`  ✅ ${exists?'Atualizado':'Novo'} confronto: ${homePT} × ${awayPT} (${phase})`);
       }
 
-      const h = match.score?.fullTime?.home;
-      const a = match.score?.fullTime?.away;
-      if (h !== null && h !== undefined && exists) {
-        const inv = exists.home === awayPT;
-        resultUpdates[`bolao/results/e_${exists.id}/h`] = String(inv ? a : h);
-        resultUpdates[`bolao/results/e_${exists.id}/a`] = String(inv ? h : a);
-        console.log(`  ✅ Resultado elim: ${homePT} ${h}×${a} ${awayPT}`);
+      // REGRA: empate em pênaltis conta como EMPATE no bolão (placar dos 120', sem pênaltis)
+      let h, a, pensH, pensA;
+      const duration = match.score?.duration;
+      if (duration === 'PENALTY_SHOOTOUT') {
+        const rt = match.score?.regularTime, et = match.score?.extraTime;
+        h = (rt?.home ?? 0) + (et?.home ?? 0);
+        a = (rt?.away ?? 0) + (et?.away ?? 0);
+        pensH = match.score?.penalties?.home;
+        pensA = match.score?.penalties?.away;
+      } else {
+        h = match.score?.fullTime?.home;
+        a = match.score?.fullTime?.away;
+      }
+      const resultId = exists ? exists.id : (match.id || Date.now());
+      const resultHome = exists ? exists.home : homePT;
+      if (h !== null && h !== undefined) {
+        const inv = resultHome === awayPT;
+        resultUpdates[`bolao/results/e_${resultId}/h`] = String(inv ? a : h);
+        resultUpdates[`bolao/results/e_${resultId}/a`] = String(inv ? h : a);
+        if (pensH !== undefined && pensH !== null) {
+          // Guarda o placar dos pênaltis só para exibição (não entra na pontuação)
+          resultUpdates[`bolao/results/e_${resultId}/pensH`] = String(inv ? pensA : pensH);
+          resultUpdates[`bolao/results/e_${resultId}/pensA`] = String(inv ? pensH : pensA);
+        }
+        console.log(`  ✅ Resultado elim: ${homePT} ${h}×${a} ${awayPT}${duration==='PENALTY_SHOOTOUT'?` [pênaltis ${pensH}×${pensA} — não contam p/ pontuação]`:''}`);
       }
     });
 

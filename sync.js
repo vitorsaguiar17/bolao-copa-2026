@@ -139,13 +139,17 @@ async function syncResults() {
       const duration = match.score?.duration;
       if (duration === 'PENALTY_SHOOTOUT') {
         const rt = match.score?.regularTime, et = match.score?.extraTime;
-        h = (rt?.home ?? 0) + (et?.home ?? 0);
-        a = (rt?.away ?? 0) + (et?.away ?? 0);
+        if (rt?.home === undefined || rt?.home === null || et?.home === undefined || et?.home === null) {
+          h = undefined; a = undefined;
+        } else {
+          h = rt.home + et.home;
+          a = rt.away + et.away;
+        }
       } else {
         h = match.score?.fullTime?.home;
         a = match.score?.fullTime?.away;
       }
-      if (h === null || h === undefined) return;
+      if (match.status !== 'FINISHED' || h === null || h === undefined || a === null || a === undefined || !Number.isFinite(h) || !Number.isFinite(a)) return;
 
       const homeEN = match.homeTeam?.name || '';
       const awayEN = match.awayTeam?.name || '';
@@ -248,8 +252,14 @@ async function syncElim() {
       const duration = match.score?.duration;
       if (duration === 'PENALTY_SHOOTOUT') {
         const rt = match.score?.regularTime, et = match.score?.extraTime;
-        h = (rt?.home ?? 0) + (et?.home ?? 0);
-        a = (rt?.away ?? 0) + (et?.away ?? 0);
+        // Só calcula se AMBOS os blocos de tempo existirem de fato — nunca assume 0 por padrão.
+        // Isso evita gravar um falso 0x0 quando a API ainda não consolidou os dados do jogo.
+        if (rt?.home === undefined || rt?.home === null || et?.home === undefined || et?.home === null) {
+          h = undefined; a = undefined;
+        } else {
+          h = rt.home + et.home;
+          a = rt.away + et.away;
+        }
         pensH = match.score?.penalties?.home;
         pensA = match.score?.penalties?.away;
       } else {
@@ -258,7 +268,8 @@ async function syncElim() {
       }
       const resultId = exists ? exists.id : (match.id || Date.now());
       const resultHome = exists ? exists.home : homePT;
-      if (h !== null && h !== undefined) {
+      // Validação extra: só grava se o jogo está de fato FINISHED e o placar é um número válido
+      if (match.status === 'FINISHED' && h !== null && h !== undefined && a !== null && a !== undefined && Number.isFinite(h) && Number.isFinite(a)) {
         const inv = resultHome === awayPT;
         resultUpdates[`bolao/results/e_${resultId}/h`] = String(inv ? a : h);
         resultUpdates[`bolao/results/e_${resultId}/a`] = String(inv ? h : a);
@@ -268,6 +279,8 @@ async function syncElim() {
           resultUpdates[`bolao/results/e_${resultId}/pensA`] = String(inv ? pensH : pensA);
         }
         console.log(`  ✅ Resultado elim: ${homePT} ${h}×${a} ${awayPT}${duration==='PENALTY_SHOOTOUT'?` [pênaltis ${pensH}×${pensA} — não contam p/ pontuação]`:''}`);
+      } else if (duration === 'PENALTY_SHOOTOUT' && (h === undefined)) {
+        console.log(`  ⏳ Jogo ${homePT} × ${awayPT} foi a pênaltis mas a API ainda não consolidou o placar dos 120min — aguardando próxima execução`);
       }
     });
 

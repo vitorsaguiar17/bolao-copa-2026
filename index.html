@@ -1150,7 +1150,12 @@ function renderPalpites(){
     const adminSaveBtn=isAdmin&&detailPlayer?`<div class="flex-end" style="margin-top:12px"><button class="btn btn-sm btn-green" id="btn-admin-save-palpites">💾 Salvar palpites de ${detailPlayer}</button></div>`:"";
     return phTabs+viewToggle+warnBanner+autoSaveInfo+playerSel+html+adminSaveBtn;
   } else {
-    const elimMs=fbState.elimMatches.filter(m=>m.phase===currentPhase);
+    const elimMs=fbState.elimMatches.filter(m=>m.phase===currentPhase).sort((a,b)=>{
+      // Ordena cronologicamente; jogos sem data/horário definido ficam no final
+      if(!a.date||!a.time)return 1;
+      if(!b.date||!b.time)return -1;
+      return matchTime(a.date,a.time)-matchTime(b.date,b.time);
+    });
     if(!elimMs.length)return phTabs+playerSel+`<div class="empty"><div class="icon">⏳</div><p>Confrontos desta fase ainda não definidos. Serão importados automaticamente da API assim que a FIFA anunciar os jogos.</p></div>`;
     let html="";
     elimMs.forEach(m=>{
@@ -1250,7 +1255,12 @@ function renderResultados(){
       });html+="</div>";
     });return phTabs+html;
   } else {
-    const elimMs=fbState.elimMatches.filter(m=>m.phase===currentPhase);
+    const elimMs=fbState.elimMatches.filter(m=>m.phase===currentPhase).sort((a,b)=>{
+      // Ordena cronologicamente; jogos sem data/horário definido ficam no final
+      if(!a.date||!a.time)return 1;
+      if(!b.date||!b.time)return -1;
+      return matchTime(a.date,a.time)-matchTime(b.date,b.time);
+    });
     if(!elimMs.length)return phTabs+`<div class="empty"><div class="icon">⏳</div><p>Nenhum jogo desta fase ainda</p></div>`;
     let html="";
     elimMs.forEach(m=>{
@@ -1400,7 +1410,11 @@ function renderAdminGroupResults(){
 function renderAdminElim(){
   let html="";
   ELIM_PHASES.forEach(ph=>{
-    const existing=fbState.elimMatches.filter(m=>m.phase===ph.phase);
+    const existing=fbState.elimMatches.filter(m=>m.phase===ph.phase).sort((a,b)=>{
+      if(!a.date||!a.time)return 1;
+      if(!b.date||!b.time)return -1;
+      return matchTime(a.date,a.time)-matchTime(b.date,b.time);
+    });
     html+=`<div style="margin-bottom:16px">
       <div class="group-label" style="font-size:17px">${ph.label}</div>
       ${existing.map(m=>{

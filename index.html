@@ -1469,13 +1469,17 @@ async function apiImportResults(showStatus=true){
       const duration=match.score?.duration;
       if(duration==="PENALTY_SHOOTOUT"){
         const rt=match.score?.regularTime,et=match.score?.extraTime;
-        h=(rt?.home??0)+(et?.home??0);
-        a=(rt?.away??0)+(et?.away??0);
+        if(rt?.home===undefined||rt?.home===null||et?.home===undefined||et?.home===null){
+          h=undefined;a=undefined;
+        } else {
+          h=rt.home+et.home;
+          a=rt.away+et.away;
+        }
       } else {
         h=match.score?.fullTime?.home;
         a=match.score?.fullTime?.away;
       }
-      if(h===null||h===undefined)return;
+      if(match.status!=="FINISHED"||h===null||h===undefined||a===null||a===undefined||!Number.isFinite(h)||!Number.isFinite(a))return;
       const homePT=toPort(match.homeTeam?.name||"");
       const awayPT=toPort(match.awayTeam?.name||"");
       const gm=GROUP_MATCHES.find(m=>(m.home===homePT&&m.away===awayPT)||(m.home===awayPT&&m.away===homePT));
